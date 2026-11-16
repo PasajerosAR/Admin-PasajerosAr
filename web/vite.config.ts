@@ -2,11 +2,15 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  base: '/Admin-PasajerosAr/',
+
   plugins: [react()],
+
   server: {
     host: '0.0.0.0',
     allowedHosts: ['.trycloudflare.com', '.loca.lt']
   },
+
   test: {
     environment: 'node'
   }
