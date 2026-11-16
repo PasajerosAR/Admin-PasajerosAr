@@ -1,5 +1,4 @@
-# Admin-PasajerosAr # Plataforma de transporte multiempresa
-Administrador Pasajeros.ar
+# Plataforma de transporte multiempresa
 
 Stack: TypeScript + React (Vite) + Supabase (Postgres, Auth, Edge Functions).
 
@@ -10,13 +9,7 @@ Stack: TypeScript + React (Vite) + Supabase (Postgres, Auth, Edge Functions).
   entre empresas con RLS; la logica critica esta en funciones del servidor.
 - **Panel admin** (`/admin`): operacion del dia, servicios, recorridos, flota, editor visual de
   disposiciones de asientos, conductores y seguimiento GPS en vivo.
-- **App del conductor** (`/conductor`): jornada, viajes del dia, iniciar y finalizar viaje, puntualidad,
-  contador y QR de prueba. Durante un viaje en curso, el conductor puede forzar el sentido de la
-  proxima salida. Cuando el GPS confiable detecta que la unidad permanecio en la ultima parada, si hay otra
-  salida del mismo dia, el sistema finaliza el viaje actual e inicia el siguiente en una operacion atomica,
-  conservando conductor y unidad. Cada viaje mantiene su propio conteo; un cambio forzado avisa si quedan
-  pasajeros registrados, conserva ese conteo en el viaje cerrado e inicia el siguiente en cero. El ultimo
-  viaje se finaliza manualmente y la jornada permanece abierta hasta su cierre por separado.
+- **App del conductor**: es un proyecto aparte (app Android); usa este mismo backend de Supabase. Las funciones y migraciones de conductor (jornada, viajes, QR de prueba, avance automatico) siguen aca porque son parte de la base compartida.
 - **Ventas administrativas** (`/admin/ventas`): tarifas por tramo y clase, venta de mostrador, pasajes con QR,
   cancelaciones auditadas, resumen y reportes. La venta y sus pasajes se crean en una transaccion en PostgreSQL;
   el servidor calcula el precio y valida el tramo y la disponibilidad del asiento. `/admin/ventas/mercadopago`
@@ -103,6 +96,5 @@ confirman pagos; los pasajes de prueba del conductor siguen separados de los pas
 
 ## Pendiente conocido
 
-- Franjas manana/tarde/noche fijas en la app del conductor (el prompt las pide configurables por empresa).
 - Correccion de conteos por un administrador (hoy el contador solo agrega registros).
 - Pruebas de pagos reales; el flujo implementado queda bloqueado a modo test hasta una habilitación separada para producción.

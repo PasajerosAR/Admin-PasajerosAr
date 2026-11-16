@@ -1,0 +1,82 @@
+import { NavLink, Outlet } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
+import { must, useQuery } from '../lib/useQuery';
+import { supabase } from '../lib/supabase';
+import type { PlatformPermission } from '../lib/types';
+import { Notice } from '../ui';
+
+const PLATFORM_LINKS: [string, string, boolean][] = [
+  ['/admin', 'Empresas', true],
+  ['/admin/gps', 'Seguimiento GPS', false],
+  ['/admin/recorridos', 'Catálogo de recorridos', false],
+  ['/admin/localidades', 'Localidades', false],
+  ['/admin/equipo', 'Equipo de plataforma', false],
+  ['/admin/ventas/reportes', 'Reportes globales', false]
+];
+const LINKS: [string, string, boolean][] = [
+  ['/admin', 'Operación del día', true],
+  ['/admin/gps', 'Seguimiento GPS', false],
+  ['/admin/servicios', 'Servicios', false],
+  ['/admin/recorridos', 'Recorridos', false],
+  ['/admin/vehiculos', 'Flota', false],
+  ['/admin/disposiciones', 'Disposiciones de asientos', false],
+  ['/admin/conductores', 'Conductores', false],
+  ['/admin/ventas', 'Ventas', false],
+  ['/admin/ventas/vender', 'Vender pasaje', false],
+  ['/admin/ventas/mercadopago', 'Mercado Pago', false],
+  ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/tarifas', 'Tarifas', false],
+  ['/admin/ventas/usuarios', 'Usuarios de empresa', false],
+  ['/admin/ventas/reportes', 'Reportes de ventas', false]
+];
+const SELLER_LINKS: [string, string, boolean][] = [
+  ['/admin/ventas/vender', 'Vender pasaje', false],
+  ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/reportes', 'Reportes de ventas', false]
+];
+const SUPPORT_LINKS: [string, string, boolean][] = [
+  ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/reportes', 'Reportes de ventas', false]
+];
+const STAFF_LINKS: [string, string, boolean, PlatformPermission['section']][] = [
+  ['/admin/empresas', 'Empresas', false, 'companies'],
+  ['/admin/gps', 'Seguimiento GPS', false, 'gps'],
+  ['/admin/recorridos', 'Catálogo de recorridos', false, 'routes'],
+  ['/admin/localidades', 'Localidades', false, 'places'],
+  ['/admin/ventas/reportes', 'Reportes globales', false, 'reports']
+];
+
+export function AdminLayout() {
+  const { profile, signOut } = useAuth();
+  const platform = profile?.role === 'platform_admin';
+  const permissions = useQuery(async () => profile?.role === 'platform_staff'
+    ? must(await supabase.from('platform_permissions').select('section,can_edit')) as Pick<PlatformPermission, 'section' | 'can_edit'>[]
+    : [], [profile?.role]);
+  const staffSections = new Set((permissions.data ?? []).map((permission) => permission.section));
+  const staffLinks = STAFF_LINKS.filter(([, , , section]) => staffSections.has(section) || staffSections.has('all'));
+  const links = platform ? PLATFORM_LINKS
+    : profile?.role === 'platform_staff' ? staffLinks
+      : profile?.role === 'company_admin' ? LINKS
+        : profile?.role === 'seller' ? SELLER_LINKS
+          : SUPPORT_LINKS;
+  const title = platform ? 'Administración general'
+    : profile?.role === 'platform_staff' ? 'Equipo de plataforma'
+      : profile?.role === 'support' ? 'Atención al cliente (solo lectura)'
+        : profile?.role === 'seller' ? 'Ventas'
+          : 'Administrador';
+  return (
+    <div className="admin">
+      <nav aria-label="Menú del panel">
+        <div className="who">{profile?.full_name}<br />{title}</div>
+        {links.map(([to, label, end]) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
+        ))}
+        <a href="#salir" onClick={(e) => { e.preventDefault(); void signOut(); }}>Salir</a>
+      </nav>
+      <main>
+        {profile?.role === 'platform_staff' && permissions.error && <Notice kind="error">{permissions.error}</Notice>}
+        <Outlet />
+      </main>
+    </div>
+  );
+}
