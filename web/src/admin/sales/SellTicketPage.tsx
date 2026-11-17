@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
@@ -102,6 +102,12 @@ export function SellTicketPage() {
         seat_label: string | null; from_stop_id: string; to_stop_id: string; status: string;
       }[];
   }, [tripId]);
+  // ventas de la taquilla o de la web se reflejan solas
+  const reloadReservations = reservations.reload;
+  useEffect(() => {
+    const id = window.setInterval(() => { if (!document.hidden) reloadReservations(); }, 10_000);
+    return () => window.clearInterval(id);
+  }, [reloadReservations]);
 
   const lookupPrice = (fromId: string, toId: string, cellId: string): number => {
     const fromPos = stops.data?.find((s) => s.id === fromId)?.position ?? 0;
