@@ -12,15 +12,20 @@ const EMPTY = { company_name: '', full_name: '', email: '', password: '' };
 // Casillas de funciones bloqueadas: tildar una función la bloquea para la empresa.
 function FeatureChecks({ blocked, onChange }: { blocked: string[]; onChange: (next: string[]) => void }) {
   return (
-    <fieldset className="stack">
-      <legend>Funciones bloqueadas <span className="muted">(tildá las que esta empresa NO va a usar)</span></legend>
-      {COMPANY_FEATURES.map((f) => (
-        <label key={f.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-          <input type="checkbox" style={{ width: 'auto' }} checked={blocked.includes(f.key)}
-            onChange={(e) => onChange(e.target.checked ? [...blocked, f.key] : blocked.filter((k) => k !== f.key))} />
-          <span><b>{f.label}</b><br /><span className="muted">{f.help}</span></span>
-        </label>
-      ))}
+    <fieldset className="feature-box">
+      <legend>Funciones bloqueadas <span className="muted">· tildá las que esta empresa NO va a usar</span></legend>
+      <div className="feature-list">
+        {COMPANY_FEATURES.map((f) => {
+          const isBlocked = blocked.includes(f.key);
+          return (
+            <label key={f.key} className={`feature-item${isBlocked ? ' is-blocked' : ''}`} title={f.help}>
+              <input type="checkbox" checked={isBlocked}
+                onChange={(e) => onChange(e.target.checked ? [...blocked, f.key] : blocked.filter((k) => k !== f.key))} />
+              <span><b>{f.label}</b><small>{f.help}</small></span>
+            </label>
+          );
+        })}
+      </div>
     </fieldset>
   );
 }
@@ -164,10 +169,12 @@ export function CompaniesPage() {
                     {uploadingLogoFor === c.id && <span className="muted">Subiendo...</span>}
                   </td>
                   <td>
-                    {c.blocked_features.length === 0
-                      ? <span className="pill ok">Todas habilitadas</span>
-                      : c.blocked_features.map((k) => <span key={k} className="pill warn" style={{ marginRight: 4 }}>Sin {featureLabel(k).toLowerCase()}</span>)}
-                    {canCreate && editing?.id !== c.id && <div><button className="secondary" onClick={() => setEditing({ id: c.id, blocked: c.blocked_features })}>Editar funciones</button></div>}
+                    <div className="pill-list">
+                      {(c.blocked_features ?? []).length === 0
+                        ? <span className="pill ok">Todas habilitadas</span>
+                        : (c.blocked_features ?? []).map((k) => <span key={k} className="pill warn">Sin {featureLabel(k).toLowerCase()}</span>)}
+                    </div>
+                    {canCreate && editing?.id !== c.id && <div style={{ marginTop: 6 }}><button className="secondary compact" onClick={() => setEditing({ id: c.id, blocked: c.blocked_features ?? [] })}>Editar funciones</button></div>}
                     {canCreate && editing?.id === c.id && (
                       <div className="stack">
                         <FeatureChecks blocked={editing.blocked} onChange={(next) => setEditing({ id: c.id, blocked: next })} />

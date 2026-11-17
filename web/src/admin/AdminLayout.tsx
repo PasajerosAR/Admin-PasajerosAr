@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { must, useQuery } from '../lib/useQuery';
 import { supabase } from '../lib/supabase';
@@ -48,6 +49,9 @@ const STAFF_LINKS: [string, string, boolean, PlatformPermission['section']][] = 
 
 export function AdminLayout() {
   const { profile, signOut, blockedFeatures } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);   // menú desplegable (solo se usa en pantallas chicas)
+  const { pathname } = useLocation();
+  useEffect(() => { setMenuOpen(false); }, [pathname]);
   const platform = profile?.role === 'platform_admin';
   const permissions = useQuery(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('section,can_edit')) as Pick<PlatformPermission, 'section' | 'can_edit'>[]
@@ -70,7 +74,14 @@ export function AdminLayout() {
           : 'Administrador';
   return (
     <div className="admin">
-      <nav aria-label="Menú del panel">
+      <header className="admin-topbar">
+        <button type="button" className="menu-toggle secondary" aria-expanded={menuOpen} aria-controls="admin-nav" onClick={() => setMenuOpen((v) => !v)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">{menuOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
+          Menú
+        </button>
+        <span className="admin-topbar-title">{title}</span>
+      </header>
+      <nav id="admin-nav" className={menuOpen ? 'open' : ''} aria-label="Menú del panel">
         <div className="who">{profile?.full_name}<br />{title}</div>
         {links.map(([to, label, end]) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
