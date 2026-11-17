@@ -38,8 +38,11 @@ Deno.serve(async (req) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'El correo no es válido.' }, 400);
     if (password.length < 8) return json({ error: 'La contraseña debe tener al menos 8 caracteres.' }, 400);
 
+    // funciones bloqueadas desde el alta (la base valida que las claves existan)
+    const blocked_features = Array.isArray(b.blocked_features) ? b.blocked_features.map(String) : [];
+
     // 3. crear empresa, usuario y perfil; si algo falla se deshace lo anterior
-    const { data: company, error: e0 } = await admin.from('companies').insert({ name: company_name }).select('id').single();
+    const { data: company, error: e0 } = await admin.from('companies').insert({ name: company_name, blocked_features }).select('id').single();
     if (e0 || !company) return json({ error: e0?.message ?? 'No se pudo crear la empresa.' }, 400);
 
     const { data: created, error: e1 } = await admin.auth.admin.createUser({ email, password, email_confirm: true });

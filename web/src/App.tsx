@@ -56,7 +56,7 @@ function StaffRoute({ section, children }: { section: PlatformPermission['sectio
 }
 
 export function App() {
-  const { loading, session, profile, signOut } = useAuth();
+  const { loading, session, profile, signOut, blockedFeatures } = useAuth();
 
   if (!configured) {
     return (
@@ -119,26 +119,28 @@ export function App() {
       </div>
     );
   }
-
+  const salesBlocked = blockedFeatures.includes('fares');
   return (
     <Routes>
       <Route path="/admin" element={<AdminLayout />}>
-        <Route index element={profile.role === 'seller' ? <Navigate to="/admin/ventas/vender" replace />
-          : profile.role === 'support' ? <Navigate to="/admin/ventas/reportes" replace /> : <TripsPage />} />
-        <Route path="gps" element={profile.role === 'company_admin' ? <LiveTripsPage /> : <Navigate to="/admin" replace />} />
+        <Route index element={profile.role === 'seller' || profile.role === 'support'
+          ? (salesBlocked ? <Notice>Tu empresa no tiene habilitadas las ventas.</Notice>
+            : <Navigate to={profile.role === 'seller' ? '/admin/ventas/vender' : '/admin/ventas/reportes'} replace />)
+          : <TripsPage />} />
+        <Route path="gps" element={profile.role === 'company_admin' && !blockedFeatures.includes('gps') ? <LiveTripsPage /> : <Navigate to="/admin" replace />} />
         <Route path="vehiculos" element={profile.role === 'company_admin' ? <VehiclesPage /> : <Navigate to="/admin" replace />} />
         <Route path="disposiciones" element={profile.role === 'company_admin' ? <LayoutsPage /> : <Navigate to="/admin" replace />} />
         <Route path="disposiciones/:id" element={profile.role === 'company_admin' ? <LayoutEditorPage /> : <Navigate to="/admin" replace />} />
         <Route path="recorridos" element={profile.role === 'company_admin' || profile.role === 'support' ? <RoutesPage /> : <Navigate to="/admin" replace />} />
         <Route path="servicios" element={profile.role === 'company_admin' ? <ServicesPage /> : <Navigate to="/admin" replace />} />
         <Route path="conductores" element={profile.role === 'company_admin' ? <DriversPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas" element={profile.role === 'company_admin' ? <SalesDashboardPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/vender" element={profile.role === 'company_admin' || profile.role === 'seller' ? <SellTicketPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/mercadopago" element={profile.role === 'company_admin' ? <MercadoPagoPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/pasajes" element={profile.role === 'company_admin' || profile.role === 'seller' || profile.role === 'support' ? <TicketsPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/tarifas" element={profile.role === 'company_admin' ? <TarifasPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/usuarios" element={profile.role === 'company_admin' ? <CompanyUsersPage /> : <Navigate to="/admin" replace />} />
-        <Route path="ventas/reportes" element={<SalesReportsPage />} />
+        <Route path="ventas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <SalesDashboardPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/vender" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' ? <SellTicketPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/mercadopago" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <MercadoPagoPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/pasajes" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' || profile.role === 'support' ? <TicketsPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/tarifas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <TarifasPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/usuarios" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <CompanyUsersPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/reportes" element={salesBlocked ? <Navigate to="/admin" replace /> : <SalesReportsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>

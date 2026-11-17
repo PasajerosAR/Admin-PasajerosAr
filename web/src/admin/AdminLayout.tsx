@@ -47,18 +47,22 @@ const STAFF_LINKS: [string, string, boolean, PlatformPermission['section']][] = 
 ];
 
 export function AdminLayout() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, blockedFeatures } = useAuth();
   const platform = profile?.role === 'platform_admin';
   const permissions = useQuery(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('section,can_edit')) as Pick<PlatformPermission, 'section' | 'can_edit'>[]
     : [], [profile?.role]);
   const staffSections = new Set((permissions.data ?? []).map((permission) => permission.section));
   const staffLinks = STAFF_LINKS.filter(([, , , section]) => staffSections.has(section) || staffSections.has('all'));
+  // Secciones que la empresa no tiene habilitadas (bloqueadas por el administrador general)
+  const enabled = (links: [string, string, boolean][]) => links.filter(([to]) => !(
+    (to === '/admin/gps' && blockedFeatures.includes('gps')) || (to.startsWith('/admin/ventas') && blockedFeatures.includes('fares'))
+  ));
   const links = platform ? PLATFORM_LINKS
     : profile?.role === 'platform_staff' ? staffLinks
-      : profile?.role === 'company_admin' ? LINKS
-        : profile?.role === 'seller' ? SELLER_LINKS
-          : SUPPORT_LINKS;
+      : profile?.role === 'company_admin' ? enabled(LINKS)
+        : profile?.role === 'seller' ? enabled(SELLER_LINKS)
+          : enabled(SUPPORT_LINKS);
   const title = platform ? 'Administración general'
     : profile?.role === 'platform_staff' ? 'Equipo de plataforma'
       : profile?.role === 'support' ? 'Atención al cliente (solo lectura)'

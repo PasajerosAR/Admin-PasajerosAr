@@ -5,12 +5,31 @@ import { must, useQuery } from '../lib/useQuery';
 import { Loading, Notice } from '../ui';
 import type { Company } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
+import { COMPANY_FEATURES, featureLabel } from '../lib/features';
 
 const EMPTY = { company_name: '', full_name: '', email: '', password: '' };
+
+// Casillas de funciones bloqueadas: tildar una función la bloquea para la empresa.
+function FeatureChecks({ blocked, onChange }: { blocked: string[]; onChange: (next: string[]) => void }) {
+  return (
+    <fieldset className="stack">
+      <legend>Funciones bloqueadas <span className="muted">(tildá las que esta empresa NO va a usar)</span></legend>
+      {COMPANY_FEATURES.map((f) => (
+        <label key={f.key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+          <input type="checkbox" style={{ width: 'auto' }} checked={blocked.includes(f.key)}
+            onChange={(e) => onChange(e.target.checked ? [...blocked, f.key] : blocked.filter((k) => k !== f.key))} />
+          <span><b>{f.label}</b><br /><span className="muted">{f.help}</span></span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
 
 export function CompaniesPage() {
   const { profile } = useAuth();
   const [form, setForm] = useState(EMPTY);
+  const [newBlocked, setNewBlocked] = useState<string[]>([]);
+  const [editing, setEditing] = useState<{ id: string; blocked: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploadingLogoFor, setUploadingLogoFor] = useState('');
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
@@ -25,12 +44,22 @@ export function CompaniesPage() {
   const create = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
-    const { error, data } = await supabase.functions.invoke('create-company-admin', { body: form });
+    const { error, data } = await supabase.functions.invoke('create-company-admin', { body: { ...form, blocked_features: newBlocked } });
     setBusy(false);
     const serverError = (data as { error?: string } | null)?.error;
     if (error || serverError) { setMsg({ kind: 'error', text: serverError ?? friendly(error) }); return; }
     setMsg({ kind: 'ok', text: 'Empresa creada. Pasale al administrador su correo y la contraseña inicial.' });
-    setForm(EMPTY); companies.reload();
+    setForm(EMPTY); setNewBlocked([]); companies.reload();
+  };
+
+  const saveFeatures = async () => {
+    if (!editing) return;
+    setBusy(true);
+    const { error } = await supabase.from('companies').update({ blocked_features: editing.blocked }).eq('id', editing.id);
+    setBusy(false);
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    setMsg({ kind: 'ok', text: 'Funciones de la empresa actualizadas.' });
+    setEditing(null); companies.reload();
   };
 
   const toggle = async (c: Company) => {
@@ -100,15 +129,16 @@ export function CompaniesPage() {
             <label>Correo<input type="email" value={form.email} onChange={set('email')} required /></label>
             <label>Contraseña inicial<input type="text" minLength={8} value={form.password} onChange={set('password')} required /></label>
           </div>
+          <FeatureChecks blocked={newBlocked} onChange={setNewBlocked} />
           <button type="submit" disabled={busy} style={{ alignSelf: 'flex-start' }}>Crear empresa</button>
         </form>
       )}
       <div className="card table-wrap">
         {companies.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Empresa</th><th>Logo</th><th>Alta</th><th>Estado</th><th /></tr></thead>
+            <thead><tr><th>Empresa</th><th>Logo</th><th>Funciones</th><th>Alta</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {(companies.data ?? []).length === 0 && <tr><td colSpan={5} className="muted">Todavía no hay empresas.</td></tr>}
+              {(companies.data ?? []).length === 0 && <tr><td colSpan={6} className="muted">Todavía no hay empresas.</td></tr>}
               {(companies.data ?? []).map((c) => (
                 <tr key={c.id}>
                   <td><b>{c.name}</b></td>
@@ -132,6 +162,21 @@ export function CompaniesPage() {
                       />
                     </label>}
                     {uploadingLogoFor === c.id && <span className="muted">Subiendo...</span>}
+                  </td>
+                  <td>
+                    {c.blocked_features.length === 0
+                      ? <span className="pill ok">Todas habilitadas</span>
+                      : c.blocked_features.map((k) => <span key={k} className="pill warn" style={{ marginRight: 4 }}>Sin {featureLabel(k).toLowerCase()}</span>)}
+                    {canCreate && editing?.id !== c.id && <div><button className="secondary" onClick={() => setEditing({ id: c.id, blocked: c.blocked_features })}>Editar funciones</button></div>}
+                    {canCreate && editing?.id === c.id && (
+                      <div className="stack">
+                        <FeatureChecks blocked={editing.blocked} onChange={(next) => setEditing({ id: c.id, blocked: next })} />
+                        <div className="row">
+                          <button type="button" disabled={busy} onClick={saveFeatures}>Guardar</button>
+                          <button type="button" className="secondary" onClick={() => setEditing(null)}>Cancelar</button>
+                        </div>
+                      </div>
+                    )}
                   </td>
                   <td>{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
                   <td>{c.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</td>
