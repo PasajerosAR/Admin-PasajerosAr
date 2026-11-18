@@ -36,9 +36,12 @@ export function CompaniesPage() {
   const [newBlocked, setNewBlocked] = useState<string[]>([]);
   const [editing, setEditing] = useState<{ id: string; blocked: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<'all' | 'active' | 'suspended'>('all');
   const [uploadingLogoFor, setUploadingLogoFor] = useState('');
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
-  const companies = useQuery(async () => must(await supabase.from('companies').select('*').order('name')) as Company[], []);
+  const companies = useQuery(async () => must(await supabase.from('companies').select('*').is('deleted_at', null).order('name')) as Company[], []);
   const canCreate = profile?.role === 'platform_admin';
   const permission = useQuery<{ can_edit: boolean } | null>(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('can_edit')
@@ -70,6 +73,13 @@ export function CompaniesPage() {
   const toggle = async (c: Company) => {
     const { error } = await supabase.from('companies').update({ active: !c.active }).eq('id', c.id);
     if (error) setMsg({ kind: 'error', text: friendly(error) }); else companies.reload();
+  };
+
+  const remove = async (c: Company) => {
+    if (!window.confirm(`Eliminar la empresa ${c.name}? Desaparece de la lista y de la web; sus viajes, ventas y registros se conservan. Sus viajes futuros se cancelan.`)) return;
+    const { error } = await supabase.rpc('remove_company', { p_company: c.id });
+    if (error) setMsg({ kind: 'error', text: friendly(error) });
+    else { setMsg({ kind: 'ok', text: `Empresa ${c.name} eliminada.` }); setSelectedId(null); companies.reload(); }
   };
 
   const uploadLogo = async (company: Company, file?: File) => {
@@ -117,6 +127,11 @@ export function CompaniesPage() {
     companies.reload();
   };
 
+  const needle = search.trim().toLocaleLowerCase('es-AR');
+  const list = (companies.data ?? []).filter((c) => (status === 'all' || (status === 'active') === c.active)
+    && (!needle || c.name.toLocaleLowerCase('es-AR').includes(needle)));
+  const selected = (companies.data ?? []).find((c) => c.id === selectedId) ?? null;
+
   const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -138,62 +153,82 @@ export function CompaniesPage() {
           <button type="submit" disabled={busy} style={{ alignSelf: 'flex-start' }}>Crear empresa</button>
         </form>
       )}
-      <div className="card table-wrap">
+      <div className="card stack">
+        <div className="row">
+          <label>Buscar empresa<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nombre" /></label>
+          <label>Estado
+            <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
+              <option value="all">Todas</option><option value="active">Activas</option><option value="suspended">Suspendidas</option>
+            </select>
+          </label>
+        </div>
         {companies.loading ? <Loading /> : (
-          <table>
-            <thead><tr><th>Empresa</th><th>Logo</th><th>Funciones</th><th>Alta</th><th>Estado</th><th /></tr></thead>
-            <tbody>
-              {(companies.data ?? []).length === 0 && <tr><td colSpan={6} className="muted">Todavía no hay empresas.</td></tr>}
-              {(companies.data ?? []).map((c) => (
-                <tr key={c.id}>
-                  <td><b>{c.name}</b></td>
-                  <td>
-                    {c.logo_path && <img
-                      src={supabase.storage.from('company-logos').getPublicUrl(c.logo_path).data.publicUrl}
-                      alt={`Logo de ${c.name}`}
-                      style={{ width: 72, height: 42, objectFit: 'contain', display: 'block', marginBottom: 6 }}
-                    />}
-                    {canEdit && <label>
-                      <span className="muted">{c.logo_path ? 'Cambiar imagen' : 'Subir imagen'}</span>
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        disabled={uploadingLogoFor === c.id}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = '';
-                          void uploadLogo(c, file);
-                        }}
-                      />
-                    </label>}
-                    {uploadingLogoFor === c.id && <span className="muted">Subiendo...</span>}
-                  </td>
-                  <td>
-                    <div className="pill-list">
-                      {(c.blocked_features ?? []).length === 0
-                        ? <span className="pill ok">Todas habilitadas</span>
-                        : (c.blocked_features ?? []).map((k) => <span key={k} className="pill warn">Sin {featureLabel(k).toLowerCase()}</span>)}
-                    </div>
-                    {canCreate && editing?.id !== c.id && <div style={{ marginTop: 6 }}><button className="secondary compact" onClick={() => setEditing({ id: c.id, blocked: c.blocked_features ?? [] })}>Editar funciones</button></div>}
-                    {canCreate && editing?.id === c.id && (
-                      <div className="stack">
-                        <FeatureChecks blocked={editing.blocked} onChange={(next) => setEditing({ id: c.id, blocked: next })} />
-                        <div className="row">
-                          <button type="button" disabled={busy} onClick={saveFeatures}>Guardar</button>
-                          <button type="button" className="secondary" onClick={() => setEditing(null)}>Cancelar</button>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td>{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
-                  <td>{c.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</td>
-                  <td>{canEdit && <button className="secondary" onClick={() => toggle(c)}>{c.active ? 'Suspender' : 'Activar'}</button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Empresa</th><th>Funciones</th><th>Alta</th><th>Estado</th><th /></tr></thead>
+              <tbody>
+                {list.length === 0 && <tr><td colSpan={5} className="muted">{(companies.data ?? []).length === 0 ? 'Todavía no hay empresas.' : 'Ninguna empresa coincide.'}</td></tr>}
+                {list.map((c) => (
+                  <tr key={c.id} className={selectedId === c.id ? 'row-selected' : ''}>
+                    <td><b>{c.name}</b></td>
+                    <td>{(c.blocked_features ?? []).length === 0 ? <span className="pill ok">Todas</span> : <span className="pill warn">{(c.blocked_features ?? []).length} bloqueada(s)</span>}</td>
+                    <td>{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
+                    <td>{c.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</td>
+                    <td><button className="secondary compact" onClick={() => { setSelectedId(selectedId === c.id ? null : c.id); setEditing(null); }}>{selectedId === c.id ? 'Cerrar ficha' : 'Abrir ficha'}</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
+      {selected && (
+        <div className="card stack company-file">
+          <h2>{selected.name} {selected.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</h2>
+          <p className="muted">Alta: {new Date(selected.created_at).toLocaleDateString('es-AR')}</p>
+
+          <h3>Logo</h3>
+          <div className="row" style={{ alignItems: 'center' }}>
+            {selected.logo_path && <img
+              src={supabase.storage.from('company-logos').getPublicUrl(selected.logo_path).data.publicUrl}
+              alt={`Logo de ${selected.name}`} style={{ width: 96, height: 56, objectFit: 'contain' }} />}
+            {canEdit && <label className="file-pick">
+              <span className="secondary button-like">{selected.logo_path ? 'Cambiar imagen' : 'Subir imagen'}</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploadingLogoFor === selected.id}
+                onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void uploadLogo(selected, file); }} />
+            </label>}
+            {uploadingLogoFor === selected.id && <span className="muted">Subiendo...</span>}
+          </div>
+
+          <h3>Funciones</h3>
+          {canCreate ? (
+            <>
+              <FeatureChecks blocked={editing?.id === selected.id ? editing.blocked : selected.blocked_features ?? []}
+                onChange={(next) => setEditing({ id: selected.id, blocked: next })} />
+              <div className="row">
+                <button type="button" disabled={busy || editing?.id !== selected.id} onClick={saveFeatures}>Guardar funciones</button>
+              </div>
+            </>
+          ) : (
+            <div className="pill-list">
+              {(selected.blocked_features ?? []).length === 0
+                ? <span className="pill ok">Todas habilitadas</span>
+                : (selected.blocked_features ?? []).map((k) => <span key={k} className="pill warn">Sin {featureLabel(k).toLowerCase()}</span>)}
+            </div>
+          )}
+
+          {canEdit && (
+            <>
+              <h3>Estado</h3>
+              <div className="row">
+                <button className="secondary" onClick={() => toggle(selected)}>{selected.active ? 'Suspender' : 'Activar'}</button>
+                <button className="danger" onClick={async () => { await remove(selected); }}>Eliminar empresa</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </>
   );
 }

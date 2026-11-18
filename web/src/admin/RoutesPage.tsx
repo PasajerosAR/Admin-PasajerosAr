@@ -38,7 +38,7 @@ export function RoutesPage() {
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
 
   const routes = useQuery(async () => must(await supabase.from('routes').select('*').order('name')) as Route[], []);
-  const companies = useQuery(async () => canEdit ? must(await supabase.from('companies').select('*').order('name')) as Company[] : [], [canEdit]);
+  const companies = useQuery(async () => canEdit ? must(await supabase.from('companies').select('*').is('deleted_at', null).order('name')) as Company[] : [], [canEdit]);
   const companyName = (id: string | null) => companies.data?.find((c) => c.id === id)?.name ?? 'Sin asignar';
   const places = useQuery(async () => must(await supabase.from('places').select('*').order('name')) as Locality[], []);
   const placeName = (id: string | null) => places.data?.find((p) => p.id === id)?.name ?? null;

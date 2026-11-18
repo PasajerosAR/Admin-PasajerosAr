@@ -8,12 +8,19 @@ import { Notice } from '../ui';
 
 const PLATFORM_LINKS: [string, string, boolean][] = [
   ['/admin', 'Empresas', true],
-  ['/admin/gps', 'Seguimiento GPS', false],
+  ['/admin/equipo', 'Equipo de plataforma', false],
   ['/admin/recorridos', 'Catálogo de recorridos', false],
   ['/admin/localidades', 'Localidades', false],
-  ['/admin/equipo', 'Equipo de plataforma', false],
+  ['/admin/gps', 'Seguimiento GPS', false],
   ['/admin/ventas/reportes', 'Reportes globales', false]
 ];
+// Títulos de grupo del menú: se muestra antes del primer enlace de cada grupo
+const PLATFORM_GROUPS: Record<string, string> = {
+  '/admin': 'Empresas', '/admin/recorridos': 'Catálogo', '/admin/gps': 'Control'
+};
+const COMPANY_GROUPS: Record<string, string> = {
+  '/admin': 'Día a día', '/admin/servicios': 'Servicios', '/admin/vehiculos': 'Flota y personal', '/admin/ventas': 'Ventas y cobros'
+};
 const LINKS: [string, string, boolean][] = [
   ['/admin', 'Operación del día', true],
   ['/admin/gps', 'Seguimiento GPS', false],
@@ -22,11 +29,11 @@ const LINKS: [string, string, boolean][] = [
   ['/admin/vehiculos', 'Flota', false],
   ['/admin/disposiciones', 'Disposiciones de asientos', false],
   ['/admin/conductores', 'Conductores', false],
-  ['/admin/ventas', 'Ventas', false],
+  ['/admin/ventas', 'Resumen de ventas', false],
   ['/admin/ventas/vender', 'Vender pasaje', false],
-  ['/admin/ventas/mercadopago', 'Mercado Pago', false],
   ['/admin/ventas/pasajes', 'Pasajes', false],
   ['/admin/ventas/tarifas', 'Tarifas', false],
+  ['/admin/ventas/mercadopago', 'Mercado Pago', false],
   ['/admin/ventas/usuarios', 'Usuarios de empresa', false],
   ['/admin/ventas/reportes', 'Reportes de ventas', false]
 ];
@@ -67,6 +74,7 @@ export function AdminLayout() {
       : profile?.role === 'company_admin' ? enabled(LINKS)
         : profile?.role === 'seller' ? enabled(SELLER_LINKS)
           : enabled(SUPPORT_LINKS);
+  const groups = platform ? PLATFORM_GROUPS : profile?.role === 'company_admin' ? COMPANY_GROUPS : {};
   const title = platform ? 'Administración general'
     : profile?.role === 'platform_staff' ? 'Equipo de plataforma'
       : profile?.role === 'support' ? 'Atención al cliente (solo lectura)'
@@ -84,7 +92,10 @@ export function AdminLayout() {
       <nav id="admin-nav" className={menuOpen ? 'open' : ''} aria-label="Menú del panel">
         <div className="who">{profile?.full_name}<br />{title}</div>
         {links.map(([to, label, end]) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
+          <span key={to} className="nav-item">
+            {groups[to] && <span className="nav-group">{groups[to]}</span>}
+            <NavLink to={to} end={end} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
+          </span>
         ))}
         <a href="#salir" onClick={(e) => { e.preventDefault(); void signOut(); }}>Salir</a>
       </nav>

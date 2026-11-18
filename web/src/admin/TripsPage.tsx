@@ -14,7 +14,7 @@ interface IncidentRow {
 
 interface TripRow {
   id: string; status: TripStatus; scheduled_departure: string; vehicle_id: string | null; driver_id: string | null;
-  started_at: string | null; started_manually: boolean; day_type: DayType;
+  started_at: string | null; started_manually: boolean; day_type: DayType; published_at: string | null;
   services: { code: string } | null;
   service_departures: { routes: { name: string } | null } | null;
 }
@@ -34,8 +34,8 @@ export function TripsPage() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,services(code),service_departures(routes(name))')
-    .eq('service_date', date).order('scheduled_departure')) as unknown as TripRow[], [date]);
+    .select('id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,published_at,services(code),service_departures(routes(name))')
+    .eq('service_date', date).neq('status', 'cancelled').order('scheduled_departure')) as unknown as TripRow[], [date]);
   const incidents = useQuery(async () => {
     const from = new Date(`${date}T00:00:00`), to = new Date(from.getTime() + 24 * 3600 * 1000);
     return must(await supabase.from('incidents').select('id,kind,note,created_at,trips(services(code)),profiles(full_name)')
@@ -50,7 +50,15 @@ export function TripsPage() {
     else { setMsg({ kind: 'ok', text: ok }); trips.reload(); }
   };
 
-  const generate = () => run(() => supabase.rpc('generate_trips', { p_date: date, p_day_type: dayType }), `Viajes generados para ${DAY_TYPE_LABEL[dayType].toLowerCase()}.`);
+  const generate = () => run(() => supabase.rpc('generate_trips', { p_date: date, p_day_type: dayType }), `Viajes generados para ${DAY_TYPE_LABEL[dayType].toLowerCase()}. Todavía no están publicados: revisalos y tocá "Publicar".`);
+  const publish = async () => {
+    if (!window.confirm(`¿Publicar ${drafts} viajes del día? Desde ese momento los pasajeros pueden verlos y comprar.`)) return;
+    const { data, error } = await supabase.rpc('publish_trips', { p_date: date });
+    if (error) setMsg({ kind: 'error', text: friendly(error) });
+    else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados.` }); trips.reload(); }
+  };
+  const assignGroup = (ids: string[], vehicle: string) =>
+    run(() => supabase.from('trips').update({ vehicle_id: vehicle || null }).in('id', ids), 'Vehículo asignado a todas las vueltas.');
   const assign = (id: string, patch: { vehicle_id?: string | null; driver_id?: string | null }) =>
     run(() => supabase.from('trips').update(patch).eq('id', id), 'Asignación guardada.');
   const startManually = (id: string) => {
@@ -63,6 +71,7 @@ export function TripsPage() {
     void run(() => supabase.from('trips').update({ status: 'cancelled' }).eq('id', id), 'Viaje cancelado.');
   };
 
+  const drafts = (trips.data ?? []).filter((t) => t.status === 'scheduled' && !t.published_at).length;
   const now = Date.now();
   const alerts = (trips.data ?? []).filter((t) => t.status === 'scheduled' && new Date(t.scheduled_departure).getTime() < now);
   const collator = new Intl.Collator('es-AR', { numeric: true, sensitivity: 'base' });
@@ -101,9 +110,11 @@ export function TripsPage() {
             </select>
           </label>
         )}
-        {canEdit && <button onClick={generate}>Generar viajes del día</button>}
+        {canEdit && <button className="secondary" onClick={generate}>Generar viajes del día</button>}
+        {canEdit && <button onClick={publish} disabled={drafts === 0}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>}
       </div>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
+      {canEdit && drafts > 0 && <Notice kind="warn">Hay {drafts} viajes sin publicar: los pasajeros todavía no los ven.</Notice>}
       {trips.error && <Notice>{trips.error}</Notice>}
       {alerts.length > 0 && (
         <Notice kind="warn">{alerts.length === 1 ? '1 salida no inició' : `${alerts.length} salidas no iniciaron`} pasada la hora programada: {alerts.map((trip) => `#${trip.services?.code ?? '-'} · ${formatTime(trip.scheduled_departure)} · ${trip.service_departures?.routes?.name ?? 'sin recorrido'}`).join(' | ')}.</Notice>
@@ -113,7 +124,7 @@ export function TripsPage() {
         <label>Estado
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TripStatus | 'all')}>
             <option value="all">Todos</option>
-            {(Object.keys(STATUS_LABEL) as TripStatus[]).map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
+            {(Object.keys(STATUS_LABEL) as TripStatus[]).filter((status) => status !== 'cancelled').map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
           </select>
         </label>
         <label>Asignación
@@ -139,7 +150,7 @@ export function TripsPage() {
       <div className="card">
         {trips.loading ? <Loading /> : (
           groups.length === 0
-            ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día desde los servicios activos.' : 'No hay salidas que coincidan con los filtros.'}</p>
+            ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</p>
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
                 open={openGroups[group.key] ?? (groupBy === 'none' || group.trips.some((trip) => trip.status === 'in_progress' || (trip.status === 'scheduled' && new Date(trip.scheduled_departure).getTime() < now)))}
@@ -153,6 +164,20 @@ export function TripsPage() {
                     <span>{group.trips.length} {group.trips.length === 1 ? 'salida' : 'salidas'}</span>
                   </summary>
                 )}
+                {canEdit && groupBy === 'service' && (() => {
+                  const ids = group.trips.filter((t) => t.status === 'scheduled').map((t) => t.id);
+                  if (ids.length === 0) return null;
+                  const vs = new Set(group.trips.filter((t) => t.status === 'scheduled').map((t) => t.vehicle_id ?? ''));
+                  return (
+                    <label className="group-vehicle">Vehículo para todas las vueltas del servicio
+                      <select value={vs.size === 1 ? [...vs][0] : ''} onChange={(e) => assignGroup(ids, e.target.value)}>
+                        <option value="">{vs.size > 1 ? 'Varios vehículos' : 'Sin asignar'}</option>
+                        {(vehicles.data ?? []).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
+                      </select>
+                      <span className="muted">Si se rompe, el conductor inicia el viaje con otra unidad.</span>
+                    </label>
+                  );
+                })()}
                 <div className="table-wrap">
                   <table>
                     <thead><tr><th>Servicio</th><th>Recorrido</th><th>Salida</th><th>Estado</th><th>Vehículo</th><th>Conductor</th><th /></tr></thead>
@@ -166,6 +191,7 @@ export function TripsPage() {
                             <td>{formatTime(t.scheduled_departure)}</td>
                             <td>
                               <span className={`pill ${t.status === 'in_progress' ? 'info' : t.status === 'completed' ? 'ok' : t.status === 'cancelled' ? 'bad' : 'warn'}`}>{STATUS_LABEL[t.status]}</span>
+                              {t.status === 'scheduled' && !t.published_at && <span className="pill warn"> Sin publicar</span>}
                               {t.started_manually && <span className="muted"> (manual)</span>}
                             </td>
                             <td>

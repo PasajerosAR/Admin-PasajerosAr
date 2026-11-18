@@ -10,6 +10,7 @@ import { VehiclesPage } from './admin/VehiclesPage';
 import { LayoutsPage } from './admin/LayoutsPage';
 import { LayoutEditorPage } from './admin/LayoutEditorPage';
 import { RoutesPage } from './admin/RoutesPage';
+import { FirstSteps } from './admin/FirstSteps';
 import { ServicesPage } from './admin/ServicesPage';
 import { PlacesPage } from './admin/PlacesPage';
 import { CompaniesPage } from './admin/CompaniesPage';
@@ -126,7 +127,7 @@ export function App() {
         <Route index element={profile.role === 'seller' || profile.role === 'support'
           ? (salesBlocked ? <Notice>Tu empresa no tiene habilitadas las ventas.</Notice>
             : <Navigate to={profile.role === 'seller' ? '/admin/ventas/vender' : '/admin/ventas/reportes'} replace />)
-          : <TripsPage />} />
+          : <>{profile.role === 'company_admin' && <FirstSteps />}<TripsPage /></>} />
         <Route path="gps" element={profile.role === 'company_admin' && !blockedFeatures.includes('gps') ? <LiveTripsPage /> : <Navigate to="/admin" replace />} />
         <Route path="vehiculos" element={profile.role === 'company_admin' ? <VehiclesPage /> : <Navigate to="/admin" replace />} />
         <Route path="disposiciones" element={profile.role === 'company_admin' ? <LayoutsPage /> : <Navigate to="/admin" replace />} />

@@ -5,11 +5,14 @@ import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice } from '../../ui';
 import type { Route, RouteStop, TicketPrice } from '../../lib/types';
 
+const SEAT_CLASSES = ['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'];
+
 export function TarifasPage() {
   const [selectedRoute, setSelectedRoute] = useState('');
   const [msg, setMsg]   = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ from_pos: '', to_pos: '', price: '', seat_class: '' });
+  const [all, setAll] = useState({ price: '', seat_class: '' });   // "Aplicar a todos"
 
   const routes = useQuery(async () =>
     must(await supabase.from('routes').select('id,name,active').order('name')) as Route[], []);
@@ -69,6 +72,23 @@ export function TarifasPage() {
     prices.reload();
   };
 
+  const applyToAll = async (e: FormEvent) => {
+    e.preventDefault();
+    const price = parseFloat(all.price);
+    if (isNaN(price) || price < 0) { setMsg({ kind: 'error', text: 'El precio no es válido.' }); return; }
+    const scope = all.seat_class || 'todas las clases';
+    if (!window.confirm(`¿Poner $${price.toFixed(2)} (${scope}) en todos los tramos de este recorrido entre localidades distintas? Las tarifas que ya existan se actualizan.`)) return;
+    setBusy(true); setMsg(null);
+    const { data, error } = await supabase.rpc('apply_price_to_all', {
+      p_route: selectedRoute, p_price: price, p_seat_class: all.seat_class || null
+    });
+    setBusy(false);
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    setMsg({ kind: 'ok', text: `Precio aplicado a ${data as number} tramos.` });
+    setAll({ price: '', seat_class: '' });
+    prices.reload();
+  };
+
   const deactivate = async (id: string) => {
     const { error } = await supabase.from('ticket_prices').update({ active: false }).eq('id', id);
     if (error) setMsg({ kind: 'error', text: friendly(error) }); else prices.reload();
@@ -97,6 +117,25 @@ export function TarifasPage() {
 
       {selectedRoute && (
         <>
+          <form className="card stack" onSubmit={applyToAll}>
+            <h2>Aplicar a todos</h2>
+            <p className="muted">Un mismo precio para todos los tramos entre localidades distintas (por ejemplo Paraná a Santa Fe, sin importar la parada). Después podés cambiar un tramo suelto.</p>
+            <div className="row">
+              <label>
+                Precio ($)
+                <input type="number" min="0" step="0.01" value={all.price} onChange={(e) => setAll({ ...all, price: e.target.value })} required />
+              </label>
+              <label>
+                Clase de asiento
+                <select value={all.seat_class} onChange={(e) => setAll({ ...all, seat_class: e.target.value })}>
+                  <option value="">Todas las clases</option>
+                  {SEAT_CLASSES.map((seatClass) => <option key={seatClass} value={seatClass}>{seatClass}</option>)}
+                </select>
+              </label>
+              <button type="submit" disabled={busy || stops.loading}>{busy ? 'Aplicando...' : 'Aplicar a todos'}</button>
+            </div>
+          </form>
+
           <form className="card stack" onSubmit={addPrice}>
             <h2>Agregar tarifa</h2>
             <div className="row">
@@ -126,7 +165,7 @@ export function TarifasPage() {
                 Clase de asiento (opcional)
                 <select value={form.seat_class} onChange={set('seat_class')}>
                   <option value="">Todas las clases</option>
-                  {['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'].map((seatClass) => (
+                  {SEAT_CLASSES.map((seatClass) => (
                     <option key={seatClass} value={seatClass}>{seatClass}</option>
                   ))}
                 </select>

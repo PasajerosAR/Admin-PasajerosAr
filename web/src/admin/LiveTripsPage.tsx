@@ -131,7 +131,7 @@ export function LiveTripsPage() {
   }, []);
 
   const companies = useQuery(async () => platformAdmin
-    ? must(await supabase.from('companies').select('id,name,active,created_at').order('name')) as Company[]
+    ? must(await supabase.from('companies').select('id,name,active,created_at').is('deleted_at', null).order('name')) as Company[]
     : [], [platformAdmin]);
   const trips = useQuery(async () => must(await supabase.rpc('admin_live_trips', {
     p_company_id: platformAdmin ? companyId || null : null

@@ -23,7 +23,7 @@ export function ServicesPage() {
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
 
-  const services = useQuery(async () => must(await supabase.from('services').select('*').order('code')) as Service[], []);
+  const services = useQuery(async () => must(await supabase.from('services').select('*').is('deleted_at', null).order('code')) as Service[], []);
   const allDeps = useQuery(async () => must(await supabase.from('service_departures').select('*').order('departure_time')) as ServiceDeparture[], []);
   const routes = useQuery(async () => must(await supabase.from('routes').select('*').eq('active', true).order('name')) as Route[], []);
   const stops = useQuery(async () => must(await supabase.from('route_stops').select('*').order('position')) as RouteStop[], []);
@@ -75,9 +75,9 @@ export function ServicesPage() {
   };
 
   const remove = async (s: Service) => {
-    if (!window.confirm(`Eliminar el servicio ${s.code} y todas sus salidas? Solo se puede eliminar si no tiene viajes asociados.`)) return;
+    if (!window.confirm(`Eliminar el servicio ${s.code}? Desaparece de la lista; los viajes y ventas ya hechos se conservan en el historial. Los viajes futuros se cancelan.`)) return;
     setRemoving(s.id);
-    const { error } = await supabase.rpc('delete_service', { p_service: s.id });
+    const { error } = await supabase.rpc('remove_service', { p_service: s.id });
     setRemoving(null);
     if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
     setMsg({ kind: 'ok', text: `Servicio ${s.code} eliminado.` });
