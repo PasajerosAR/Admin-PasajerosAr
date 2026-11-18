@@ -66,11 +66,12 @@ Deno.serve(async (req) => {
       role,
       full_name,
       dni,
-      phone
+      phone,
+      legajo: String(b.legajo ?? '').trim() || null
     });
     if (e2) {
       await admin.auth.admin.deleteUser(created.user.id);
-      return json({ error: e2.message }, 400);
+      return json({ error: e2.code === '23505' ? 'Ese legajo ya lo tiene otra persona.' : e2.message }, 400);
     }
 
     return json({ id: created.user.id });

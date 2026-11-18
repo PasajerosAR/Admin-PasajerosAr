@@ -68,11 +68,12 @@ Deno.serve(async (req) => {
       id: created.user.id,
       company_id: null,
       role: 'platform_staff',
-      full_name
+      full_name,
+      legajo: String(b.legajo ?? '').trim() || null
     });
     if (e2) {
       await admin.auth.admin.deleteUser(created.user.id);
-      return json({ error: e2.message }, 400);
+      return json({ error: e2.code === '23505' ? 'Ese legajo ya lo tiene otra persona.' : e2.message }, 400);
     }
 
     // 4. Insertar permisos configurados

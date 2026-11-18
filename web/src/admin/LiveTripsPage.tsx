@@ -9,6 +9,7 @@ import type { Company } from '../lib/types';
 import type { LatLng } from '../lib/routePath';
 import { liveProgress, type LiveStop } from '../lib/gpsProgress';
 import { formatPunctuality, punctualityState } from '../lib/punctuality';
+import { GpsAlerts, type AutoAlert } from './GpsAlerts';
 
 interface ScheduledStop {
   id: string;
@@ -41,6 +42,18 @@ interface LiveTrip {
   heading: number | null;
   location_at: string | null;
 }
+
+// Umbrales de los avisos automaticos (ajustables)
+const LATE_MIN = 5;      // minutos de atraso para marcar "Atrasado"
+const EARLY_MIN = 5;     // minutos de adelanto para marcar "Adelantado"
+const STOPPED_MIN = 5;   // minutos sin moverse para marcar "Detenido" (solo mientras el panel esta abierto)
+const STOPPED_METERS = 40;
+type Flag = 'stale' | 'late' | 'early' | 'off' | 'stopped';
+const CARDS: [Flag | 'all', string][] = [['all', 'En curso'], ['stale', 'Sin señal'], ['late', 'Atrasados'], ['early', 'Adelantados'], ['stopped', 'Detenidos'], ['off', 'Desviados']];
+const metersBetween = (a: [number, number], b: [number, number]) => {
+  const k = 111_320, dy = (a[0] - b[0]) * k, dx = (a[1] - b[1]) * k * Math.cos(a[0] * Math.PI / 180);
+  return Math.hypot(dx, dy);
+};
 
 const ARGENTINA: L.LatLngTuple = [-31.7333, -60.5236];
 const ROUTE_COLORS = ['#0f5c8c', '#9b4dca', '#d97706', '#15803d', '#be123c', '#475569'];
@@ -125,6 +138,7 @@ export function LiveTripsPage() {
   const [companyId, setCompanyId] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [filter, setFilter] = useState<Flag | 'all'>('all');
   useEffect(() => {
     const timer = window.setInterval(() => setRefreshTick((value) => value + 1), 15_000);
     return () => window.clearInterval(timer);
@@ -150,27 +164,59 @@ export function LiveTripsPage() {
     if (ageSeconds > 90) return `Ubicación desactualizada · hace ${Math.floor(ageSeconds / 60)} min`;
     return `Actualizado ${formatTime(trip.location_at)} · precisión ±${Math.round(trip.accuracy_m ?? 0)} m`;
   };
-  const punctuality = (trip: LiveTrip) => {
-    if (trip.latitude === null || trip.longitude === null || !trip.location_at) return { text: 'Sin ubicación GPS', kind: 'warn' as const };
-    if (Date.now() - new Date(trip.location_at).getTime() > 90_000) return { text: 'GPS desactualizado', kind: 'warn' as const };
+  const punctuality = (trip: LiveTrip): { text: string; kind: 'warn' | 'bad' | 'info' | 'ok'; flag: Flag | null; mins?: number } => {
+    if (trip.latitude === null || trip.longitude === null || !trip.location_at) return { text: 'Sin ubicación GPS', kind: 'warn' as const, flag: 'stale' as const };
+    if (Date.now() - new Date(trip.location_at).getTime() > 90_000) return { text: 'GPS desactualizado', kind: 'warn' as const, flag: 'stale' as const };
     const stops: LiveStop[] = (scheduleByTrip.get(trip.trip_id) ?? []).flatMap((stop) =>
       stop.lat !== null && stop.lng !== null && stop.minutes_from_start !== null
         ? [{ ...stop, lat: Number(stop.lat), lng: Number(stop.lng), minutes_from_start: Number(stop.minutes_from_start), dwell_minutes: Number(stop.dwell_minutes) }]
         : []);
-    if (stops.length < 2) return { text: 'Faltan horarios o coordenadas de paradas', kind: 'warn' as const };
+    if (stops.length < 2) return { text: 'Faltan horarios o coordenadas de paradas', kind: 'warn' as const, flag: null };
     const savedPath = (trip.route_path ?? []).filter(([lat, lng]) => validPoint(lat, lng));
     const path = savedPath.length > 1 ? savedPath : stops.map((stop) => [stop.lat, stop.lng] as LatLng);
-    if (path.length < 2) return { text: 'Faltan datos del recorrido', kind: 'warn' as const };
+    if (path.length < 2) return { text: 'Faltan datos del recorrido', kind: 'warn' as const, flag: null };
     const now = new Date();
     const scheduled = new Date(trip.scheduled_departure);
     const progress = liveProgress(path, stops, scheduled, now, [trip.latitude, trip.longitude]);
-    if (progress.offRoute || progress.mins === null) return { text: 'Fuera del recorrido', kind: 'warn' as const };
+    if (progress.offRoute || progress.mins === null) return { text: 'Fuera del recorrido', kind: 'warn' as const, flag: 'off' as const };
     const state = punctualityState(progress.mins);
     return {
       text: formatPunctuality(progress.mins, now.getTime() < scheduled.getTime()),
-      kind: state === 'late' ? 'bad' as const : state === 'early' ? 'info' as const : 'ok' as const
+      kind: state === 'late' ? 'bad' as const : state === 'early' ? 'info' as const : 'ok' as const,
+      flag: progress.mins <= -LATE_MIN ? 'late' as const : progress.mins >= EARLY_MIN ? 'early' as const : null,
+      mins: progress.mins
     };
   };
+
+  // "Detenido": la posicion casi no cambia durante STOPPED_MIN minutos (se mide mientras el panel esta abierto)
+  const anchors = useRef(new Map<string, { at: [number, number]; since: number }>());
+  const stoppedIds = new Set<string>();
+  const nowMs = Date.now();
+  for (const trip of rows) {
+    if (trip.latitude === null || trip.longitude === null) continue;
+    const here: [number, number] = [trip.latitude, trip.longitude];
+    const anchor = anchors.current.get(trip.trip_id);
+    if (!anchor || metersBetween(anchor.at, here) > STOPPED_METERS) anchors.current.set(trip.trip_id, { at: here, since: nowMs });
+    else if (nowMs - anchor.since >= STOPPED_MIN * 60_000) stoppedIds.add(trip.trip_id);
+  }
+  const flagsOf = (trip: LiveTrip): Flag[] => {
+    const p = punctuality(trip);
+    return [...(p.flag ? [p.flag] : []), ...(stoppedIds.has(trip.trip_id) ? ['stopped' as const] : [])];
+  };
+  const tripFlags = new Map(rows.map((trip) => [trip.trip_id, flagsOf(trip)]));
+  const countOf = (flag: Flag | 'all') => flag === 'all' ? rows.length : rows.filter((t) => tripFlags.get(t.trip_id)?.includes(flag)).length;
+  const shown = filter === 'all' ? rows : rows.filter((t) => tripFlags.get(t.trip_id)?.includes(filter));
+  const autoAlerts: AutoAlert[] = rows.flatMap((trip) => (tripFlags.get(trip.trip_id) ?? []).map((flag): AutoAlert => {
+    const who = `Servicio #${trip.service_code}${trip.driver_name ? ` · ${trip.driver_name}` : ''}`;
+    const p = punctuality(trip);
+    return {
+      key: `${trip.trip_id}-${flag}`,
+      kind: flag === 'late' || flag === 'off' ? 'bad' : 'warn',
+      text: flag === 'late' ? `${who}: ${p.text}` : flag === 'early' ? `${who}: ${p.text}` : flag === 'off' ? `${who}: fuera del recorrido`
+        : flag === 'stopped' ? `${who}: detenido hace ${STOPPED_MIN}+ min` : `${who}: sin señal GPS`
+    };
+  }));
+  const selectedLabel = selected ? `Servicio #${selected.service_code}` : '';
 
   return (
     <>
@@ -187,18 +233,27 @@ export function LiveTripsPage() {
         )}
         <button className="secondary" onClick={trips.reload}>Actualizar ahora</button>
       </div>
+      <div className="gps-cards" aria-label="Estado de los servicios">
+        {CARDS.map(([flag, label]) => (
+          <button key={flag} type="button" className={`gps-card${flag !== 'all' && countOf(flag) > 0 ? ' hot' : ''}${filter === flag ? ' on' : ''}`}
+            aria-pressed={filter === flag} onClick={() => setFilter(filter === flag ? 'all' : flag)}>
+            <b>{countOf(flag)}</b><span>{label}</span>
+          </button>
+        ))}
+      </div>
+      {profile?.role === 'company_admin' && <GpsAlerts alerts={autoAlerts} selectedTripId={activeSelectedId} selectedLabel={selectedLabel} tick={refreshTick} />}
       {companies.error && <Notice>{companies.error}</Notice>}
       {trips.error && <Notice>{trips.error}</Notice>}
       {schedules.error && <Notice>{schedules.error}</Notice>}
       <div className="card">
         {(trips.loading || schedules.loading) && !trips.data ? <Loading /> : rows.length === 0
           ? <p className="muted" role="status">No hay servicios en curso para esta selección.</p>
-          : <LiveTripsMap trips={rows} selectedId={activeSelectedId} onSelect={setSelectedId} />}
+          : <LiveTripsMap trips={shown} selectedId={activeSelectedId} onSelect={setSelectedId} />}
       </div>
       {(trips.loading || schedules.loading) && trips.data && <p className="muted" role="status">Actualizando posiciones…</p>}
       {rows.length > 0 && (
         <div className="live-trip-list" aria-label="Servicios en curso">
-          {rows.map((trip) => (
+          {shown.map((trip) => (
             <button key={trip.trip_id} type="button" className={`card live-trip-card${trip.trip_id === activeSelectedId ? ' selected' : ''}`}
               aria-pressed={trip.trip_id === activeSelectedId} onClick={() => setSelectedId(trip.trip_id)}>
               <span><b>{trip.company_name} · Servicio #{trip.service_code}</b><br />{trip.route_name}</span>

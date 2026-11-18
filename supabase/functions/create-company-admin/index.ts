@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
     }
 
     const { error: e2 } = await admin.from('profiles').insert({
-      id: created.user.id, company_id: company.id, role: 'company_admin', full_name
+      id: created.user.id, company_id: company.id, role: 'company_admin', full_name, legajo: String(b.legajo ?? '').trim() || null
     });
     if (e2) {
       await admin.auth.admin.deleteUser(created.user.id);
       await admin.from('companies').delete().eq('id', company.id);
-      return json({ error: e2.message }, 400);
+      return json({ error: e2.code === '23505' ? 'Ese legajo ya lo tiene otra persona.' : e2.message }, 400);
     }
     return json({ id: company.id });
   } catch (e) {

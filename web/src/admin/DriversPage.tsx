@@ -6,7 +6,7 @@ import { Loading, Notice } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Profile } from '../lib/types';
 
-const EMPTY = { full_name: '', email: '', password: '', dni: '', phone: '' };
+const EMPTY = { full_name: '', legajo: '', email: '', password: '', dni: '', phone: '' };
 
 export function DriversPage() {
   const { profile } = useAuth();
@@ -33,6 +33,13 @@ export function DriversPage() {
     if (error) setMsg({ kind: 'error', text: friendly(error) }); else drivers.reload();
   };
 
+  const editLegajo = async (d: Profile) => {
+    const value = window.prompt(`Legajo de ${d.full_name}:`, d.legajo ?? '');
+    if (value === null) return;
+    const { error } = await supabase.rpc('set_legajo', { p_profile: d.id, p_legajo: value });
+    if (error) setMsg({ kind: 'error', text: friendly(error) }); else drivers.reload();
+  };
+
   const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -44,6 +51,7 @@ export function DriversPage() {
           <h2>Agregar conductor</h2>
           <div className="row">
             <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
+            <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
             <label>DNI<input value={form.dni} onChange={set('dni')} inputMode="numeric" /></label>
             <label>Teléfono<input value={form.phone} onChange={set('phone')} inputMode="tel" /></label>
           </div>
@@ -57,14 +65,14 @@ export function DriversPage() {
       <div className="card table-wrap">
         {drivers.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Nombre</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+            <thead><tr><th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {(drivers.data ?? []).length === 0 && <tr><td colSpan={5} className="muted">Todavía no hay conductores.</td></tr>}
+              {(drivers.data ?? []).length === 0 && <tr><td colSpan={6} className="muted">Todavía no hay conductores.</td></tr>}
               {(drivers.data ?? []).map((d) => (
                 <tr key={d.id}>
-                  <td><b>{d.full_name}</b></td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
+                  <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
                   <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
-                  <td>{canEdit && <button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button>}</td>
+                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button></div>}</td>
                 </tr>
               ))}
             </tbody>

@@ -5,6 +5,7 @@ import { must, useQuery } from '../lib/useQuery';
 import { supabase } from '../lib/supabase';
 import type { PlatformPermission } from '../lib/types';
 import { Notice } from '../ui';
+import { ProfileMenu } from './ProfileMenu';
 
 const PLATFORM_LINKS: [string, string, boolean][] = [
   ['/admin', 'Empresas', true],
@@ -99,6 +100,7 @@ export function AdminLayout() {
         ))}
         <a href="#salir" onClick={(e) => { e.preventDefault(); void signOut(); }}>Salir</a>
       </nav>
+      <ProfileMenu />
       <main>
         {profile?.role === 'platform_staff' && permissions.error && <Notice kind="error">{permissions.error}</Notice>}
         <Outlet />

@@ -7,7 +7,7 @@ import type { Company } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 import { COMPANY_FEATURES, featureLabel } from '../lib/features';
 
-const EMPTY = { company_name: '', full_name: '', email: '', password: '' };
+const EMPTY = { company_name: '', full_name: '', legajo: '', email: '', password: '' };
 
 // Casillas de funciones bloqueadas: tildar una función la bloquea para la empresa.
 function FeatureChecks({ blocked, onChange }: { blocked: string[]; onChange: (next: string[]) => void }) {
@@ -144,6 +144,7 @@ export function CompaniesPage() {
           <div className="row">
             <label>Nombre de la empresa<input value={form.company_name} onChange={set('company_name')} required /></label>
             <label>Administrador: nombre completo<input value={form.full_name} onChange={set('full_name')} required /></label>
+            <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
           </div>
           <div className="row">
             <label>Correo<input type="email" value={form.email} onChange={set('email')} required /></label>

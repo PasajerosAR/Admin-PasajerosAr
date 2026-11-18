@@ -6,7 +6,7 @@ import { Loading, Notice } from '../../ui';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Profile } from '../../lib/types';
 
-const EMPTY = { full_name: '', dni: '', email: '', phone: '', password: '', role: 'seller' as 'seller' | 'company_admin' };
+const EMPTY = { full_name: '', legajo: '', dni: '', email: '', phone: '', password: '', role: 'seller' as 'seller' | 'company_admin' };
 
 export function CompanyUsersPage() {
   const { profile } = useAuth();
@@ -63,6 +63,7 @@ export function CompanyUsersPage() {
         <h2>Agregar usuario</h2>
         <div className="row">
           <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
+          <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
           <label>DNI<input value={form.dni} onChange={set('dni')} inputMode="numeric" required /></label>
           <label>Teléfono<input value={form.phone} onChange={set('phone')} inputMode="tel" required /></label>
         </div>

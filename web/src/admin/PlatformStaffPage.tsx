@@ -14,7 +14,7 @@ const ALL_SECTIONS: { key: Section; label: string }[] = [
   { key: 'reports',   label: 'Reportes globales' },
 ];
 
-const EMPTY_FORM = { full_name: '', email: '', password: '' };
+const EMPTY_FORM = { full_name: '', legajo: '', email: '', password: '' };
 type PermState = Record<Section, { view: boolean; edit: boolean }>;
 function emptyPerms(): PermState {
   const r = {} as PermState;
@@ -127,6 +127,7 @@ export function PlatformStaffPage() {
         <h2>Agregar colaborador</h2>
         <div className="row">
           <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
+          <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
           <label>Correo (usuario)<input type="email" value={form.email} onChange={set('email')} required /></label>
           <label>Contraseña inicial<input type="text" minLength={8} value={form.password} onChange={set('password')} required /></label>
         </div>
