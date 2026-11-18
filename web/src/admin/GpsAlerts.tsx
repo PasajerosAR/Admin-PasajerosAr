@@ -38,7 +38,7 @@ export function GpsAlerts({ alerts, selectedTripId, selectedLabel, tick }: {
 
   const incidents = useQuery(async () => {
     const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    return must(await supabase.from('incidents').select('id,kind,note,created_at,trips(services(code)),profiles(full_name,legajo)')
+    return must(await supabase.from('incidents').select('id,kind,note,created_at,trips(services(code)),profiles!driver_id(full_name,legajo)')
       .is('resolved_at', null).gte('created_at', since).order('created_at', { ascending: false })) as unknown as IncidentRow[];
   }, [tick]);
   const messages = useQuery(async () => must(await supabase.from('driver_messages')
