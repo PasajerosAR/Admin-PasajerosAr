@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthProvider';
 import { Login } from './auth/Login';
 import { configured } from './lib/supabase';
-import { Loading, Notice } from './ui';
+import { Loading, Notice, SplashLoading } from './ui';
 import { AdminLayout } from './admin/AdminLayout';
 import { TripsPage } from './admin/TripsPage';
 import { VehiclesPage } from './admin/VehiclesPage';
@@ -66,7 +66,7 @@ export function App() {
       </div>
     );
   }
-  if (loading) return <div className="center"><Loading /></div>;
+  if (loading) return <SplashLoading />;
   if (!session) {
     return <DriverThemeProvider><Login /></DriverThemeProvider>;
   }
