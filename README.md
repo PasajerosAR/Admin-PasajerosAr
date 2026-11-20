@@ -40,7 +40,7 @@ confirman pagos; los pasajes de prueba del conductor siguen separados de los pas
    supabase functions deploy create-driver
    supabase functions deploy create-company-admin
    supabase functions deploy create-platform-staff
-   supabase functions deploy create-sale-ticket
+   supabase functions deploy email-tickets
    supabase functions deploy cancel-ticket
    supabase functions deploy mp-oauth-start
    supabase functions deploy mp-company-connection-status

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice } from '../../ui';
+import { SearchSelect } from '../SearchSelect';
 import type { Route, RouteStop, TicketPrice } from '../../lib/types';
 
 const SEAT_CLASSES = ['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'];
@@ -106,12 +107,7 @@ export function TarifasPage() {
       <div className="card">
         <label>
           Recorrido
-          <select value={selectedRoute} onChange={(e) => setSelectedRoute(e.target.value)}>
-            <option value="">— Seleccioná un recorrido —</option>
-            {(routes.data ?? []).map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
+          <SearchSelect options={(routes.data ?? []).map((r) => ({ value: r.id, label: r.name }))} value={selectedRoute} onChange={setSelectedRoute} placeholder="Buscar recorrido" />
         </label>
       </div>
 

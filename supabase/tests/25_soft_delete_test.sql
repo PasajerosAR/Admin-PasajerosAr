@@ -5,6 +5,11 @@ create temp table sv as select s.id, s.code from public.services s
  where s.company_id = 'aaaaaaaa-0000-0000-0000-000000000001' and exists (select 1 from public.trips x where x.service_id = s.id) limit 1;
 grant all on sv to authenticated;
 select t.expect_eq((select count(*) from sv), 1::bigint, 'hay un servicio con viajes');
+select t.logout();
+alter table public.trips disable trigger user;
+update public.trips set status = 'in_progress' where id = (select id from public.trips where service_id = (select id from sv) order by service_date desc limit 1);
+alter table public.trips enable trigger user;
+select t.login('a1000000-0000-0000-0000-000000000001');
 select t.expect_fail($q$select public.remove_service((select id from sv))$q$, 'SERVICE_IN_PROGRESS');
 select t.logout();
 alter table public.trips disable trigger user;

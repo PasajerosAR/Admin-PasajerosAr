@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Company, Locality, Route, RouteStop } from '../lib/types';
 import type { Maneuver } from '../lib/turnGuide';
@@ -108,6 +108,7 @@ export function RoutesPage() {
 
   // Los puntos de paso se guardan por tramo; si se quita una parada, se descartan para no dejar tramos mal asignados.
   const addVia = (lat: number, lng: number) => setVia(sortVia(stops, [...via, { seg: nearestSegment(stops, [lat, lng]), lat, lng }]));
+  const [q, setQ] = useState('');
   const moveVia = (i: number, lat: number, lng: number) => setVia(sortVia(stops, via.map((v, j) => (j === i ? { ...v, lat, lng } : v))));
   const removeVia = (i: number) => setVia(via.filter((_, j) => j !== i));
   const patch = (i: number, p: Partial<StopForm>) => setStops(stops.map((s, j) => (j === i ? { ...s, ...p } : s)));
@@ -178,12 +179,13 @@ export function RoutesPage() {
       )}
 
       <div className="card table-wrap">
+        <FilterBox value={q} onChange={setQ} placeholder="Buscar recorrido" />
         {routes.loading ? <Loading /> : (
           <table>
             <thead><tr><th>Recorrido</th>{canEdit && <th>Empresa</th>}<th>Origen → destino</th><th>Paradas</th><th /></tr></thead>
             <tbody>
-              {(routes.data ?? []).length === 0 && <tr><td colSpan={5} className="muted">Todavía no hay recorridos.</td></tr>}
-              {(routes.data ?? []).map((r) => (
+              {(routes.data ?? []).filter((r) => matches(q, r.name)).length === 0 && <tr><td colSpan={5} className="muted">{(routes.data ?? []).length === 0 ? 'Todavía no hay recorridos.' : 'Ningún recorrido coincide.'}</td></tr>}
+              {(routes.data ?? []).filter((r) => matches(q, r.name)).map((r) => (
                 <tr key={r.id}>
                   <td><b>{r.name}</b></td>
                   {canEdit && <td>{r.company_id ? companyName(r.company_id) : <span className="pill warn">Sin asignar</span>}</td>}

@@ -29,3 +29,12 @@ export function todayLocal(): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+/** Caja de búsqueda para listados: filtra por cualquier texto de la fila. */
+export function FilterBox({ value, onChange, placeholder = 'Buscar...' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return <input className="filter-box" type="search" placeholder={placeholder} aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />;
+}
+export const matches = (needle: string, ...fields: (string | number | null | undefined)[]): boolean => {
+  const n = needle.trim().toLocaleLowerCase('es-AR');
+  return !n || fields.some((f) => String(f ?? '').toLocaleLowerCase('es-AR').includes(n));
+};

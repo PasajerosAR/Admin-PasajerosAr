@@ -2,13 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice } from '../../ui';
+import { FilterBox, Loading, Notice, matches } from '../../ui';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Profile } from '../../lib/types';
 
 const EMPTY = { full_name: '', legajo: '', dni: '', email: '', phone: '', password: '', role: 'seller' as 'seller' | 'company_admin' };
 
 export function CompanyUsersPage() {
+  const [q, setQ] = useState('');
   const { profile } = useAuth();
   const [form, setForm] = useState(EMPTY);
   const [msg, setMsg]   = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
@@ -82,16 +83,17 @@ export function CompanyUsersPage() {
       </form>
 
       <div className="card table-wrap">
+        <FilterBox value={q} onChange={setQ} placeholder="Buscar por nombre, DNI o correo" />
         {users.loading ? <Loading /> : (
           <table>
             <thead>
               <tr><th>Nombre</th><th>DNI</th><th>Teléfono</th><th>Correo</th><th>Rol</th><th>Estado</th><th /></tr>
             </thead>
             <tbody>
-              {(users.data ?? []).length === 0 && (
-                <tr><td colSpan={7} className="muted">Todavía no hay usuarios internos.</td></tr>
+              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.dni, u.legajo, u.phone)).length === 0 && (
+                <tr><td colSpan={7} className="muted">{(users.data ?? []).length === 0 ? 'Todavía no hay usuarios internos.' : 'Ningún usuario coincide.'}</td></tr>
               )}
-              {(users.data ?? []).map((u) => (
+              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.dni, u.legajo, u.phone)).map((u) => (
                 <tr key={u.id}>
                   <td><b>{u.full_name}</b>{u.id === profile?.id && <span className="muted"> (vos)</span>}</td>
                   <td>{u.dni ?? '-'}</td>

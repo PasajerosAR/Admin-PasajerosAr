@@ -10,18 +10,6 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-interface PassengerInput {
-  passenger_name: string;
-  passenger_dni: string;
-  passenger_email: string;
-  passenger_phone: string;
-  from_stop_id: string;
-  to_stop_id: string;
-  seat_label?: string | null;
-  layout_cell_id?: string | null;
-  is_complimentary?: boolean;
-}
-
 interface TicketRow {
   id: string;
   qr_code: string;
@@ -85,93 +73,59 @@ function base64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
+const PLACEHOLDER_EMAIL = 'taquilla@pasajeros.ar';
+
+// Envia por correo los pasajes de una venta ya registrada (ventanilla). Solo a quienes dejaron un correo.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405);
-
-  let committedSale: { sale_id: string; total: number; tickets: TicketRow[] } | null = null;
-  let emailSent = 0;
-  let emailFailed = 0;
   try {
     const url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const authorization = req.headers.get('Authorization');
     if (!url || !anonKey || !authorization) return json({ error: 'No autenticado.' }, 401);
-
     const asCaller = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
     const { data: who, error: authError } = await asCaller.auth.getUser();
     if (authError || !who.user) return json({ error: 'No autenticado.' }, 401);
 
-    const body = await req.json();
-    const tripId = String(body.trip_id ?? '');
-    const paymentMethod = String(body.payment_method ?? '');
-    const notes = String(body.notes ?? '').trim();
-    const passengers: PassengerInput[] = Array.isArray(body.passengers) ? body.passengers : [];
-    if (!tripId) return json({ error: 'Falta el viaje.' }, 400);
-    if (!['cash', 'debit', 'credit', 'transfer', 'mp', 'complimentary'].includes(paymentMethod)) {
-      return json({ error: 'Medio de pago inválido.' }, 400);
-    }
-    if (passengers.length === 0 || passengers.length > 20) {
-      return json({ error: 'La venta debe incluir entre 1 y 20 pasajeros.' }, 400);
-    }
+    const saleId = String((await req.json()).sale_id ?? '');
+    if (!saleId) return json({ error: 'Falta la venta.' }, 400);
+    // la venta tiene que ser visible para quien llama (misma empresa)
+    const mine = await asCaller.from('sales').select('id, company_id, trip_id').eq('id', saleId).maybeSingle();
+    if (mine.error || !mine.data) return json({ error: 'Venta no encontrada.' }, 404);
 
-    const { data, error } = await asCaller.rpc('create_sale_with_tickets', {
-      p_trip: tripId,
-      p_payment_method: paymentMethod,
-      p_notes: notes || null,
-      p_passengers: passengers
-    });
-    if (error) {
-      const forbidden = /FORBIDDEN/i.test(error.message);
-      return json({ error: error.message }, forbidden ? 403 : 400);
-    }
-
-    const result = data as { sale_id: string; total: number; tickets: TicketRow[] };
-    committedSale = result;
     const resendKey = Deno.env.get('RESEND_API_KEY');
     const fromEmail = Deno.env.get('TICKETS_FROM_EMAIL');
-    if (!resendKey || !fromEmail) {
-      return json({
-        ...result,
-        email: { sent: 0, failed: result.tickets.length, reason: 'RESEND_NOT_CONFIGURED' }
-      }, 201);
-    }
-
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    if (!serviceKey) return json({
-      ...result, email: { sent: 0, failed: result.tickets.length, reason: 'SERVICE_ROLE_NOT_CONFIGURED' }
-    }, 201);
+    if (!resendKey || !fromEmail || !serviceKey) return json({ sent: 0, failed: 0, reason: 'RESEND_NOT_CONFIGURED' });
     const admin = createClient(url, serviceKey);
 
-    const ticketIds = result.tickets.map((ticket) => ticket.id);
-    const [ticketsResult, saleResult] = await Promise.all([
-      admin.from('sale_tickets').select('id, qr_code, passenger_name, passenger_dni, passenger_email, passenger_phone, seat_label, price, from_stop_id, to_stop_id').in('id', ticketIds),
-      admin.from('sales').select('company_id, trip_id').eq('id', result.sale_id).single()
-    ]);
-    if (ticketsResult.error || saleResult.error || !saleResult.data) {
-      return json({ ...result, email: { sent: 0, failed: result.tickets.length, reason: 'TICKET_DETAILS_UNAVAILABLE' } }, 201);
-    }
+    const ticketsResult = await admin.from('sale_tickets')
+      .select('id, qr_code, passenger_name, passenger_dni, passenger_email, passenger_phone, seat_label, price, from_stop_id, to_stop_id')
+      .eq('sale_id', saleId).neq('status', 'cancelled').neq('passenger_email', PLACEHOLDER_EMAIL);
+    if (ticketsResult.error) return json({ error: 'No se pudieron leer los pasajes.' }, 500);
+    const tickets = ticketsResult.data as TicketRow[];
+    if (tickets.length === 0) return json({ sent: 0, failed: 0 });
 
     const tripResult = await admin.from('trips')
       .select('service_date, scheduled_departure, service:services(code), departure:service_departures(route_id)')
-      .eq('id', saleResult.data.trip_id).single();
-    if (tripResult.error || !tripResult.data) {
-      return json({ ...result, email: { sent: 0, failed: result.tickets.length, reason: 'TRIP_DETAILS_UNAVAILABLE' } }, 201);
-    }
+      .eq('id', mine.data.trip_id).single();
+    if (tripResult.error || !tripResult.data) return json({ sent: 0, failed: tickets.length, reason: 'TRIP_DETAILS_UNAVAILABLE' });
     const routeId = (tripResult.data.departure as { route_id: string } | null)?.route_id;
     const service = tripResult.data.service as { code: string } | null;
     const [companyResult, routeResult, stopsResult] = await Promise.all([
-      admin.from('companies').select('name').eq('id', saleResult.data.company_id).single(),
+      admin.from('companies').select('name').eq('id', mine.data.company_id).single(),
       routeId ? admin.from('routes').select('name').eq('id', routeId).single() : Promise.resolve({ data: null, error: new Error('Route missing') }),
-      admin.from('route_stops').select('id, name').in('id', ticketsResult.data.flatMap((ticket) => [ticket.from_stop_id, ticket.to_stop_id]))
+      admin.from('route_stops').select('id, name').in('id', tickets.flatMap((ticket) => [ticket.from_stop_id, ticket.to_stop_id]))
     ]);
     if (companyResult.error || routeResult.error || stopsResult.error || !service) {
-      return json({ ...result, email: { sent: 0, failed: result.tickets.length, reason: 'ROUTE_DETAILS_UNAVAILABLE' } }, 201);
+      return json({ sent: 0, failed: tickets.length, reason: 'ROUTE_DETAILS_UNAVAILABLE' });
     }
     const stopNames = new Map(stopsResult.data.map((stop) => [stop.id, stop.name]));
     const scheduled = new Date(tripResult.data.scheduled_departure);
-    const emailErrors: { ticket_id: string; reason: string }[] = [];
-    for (const ticket of ticketsResult.data as TicketRow[]) {
+    let sent = 0;
+    const errors: { ticket_id: string; reason: string }[] = [];
+    for (const ticket of tickets) {
       try {
         const pdf = await ticketPdf(ticket, {
           company: companyResult.data.name,
@@ -193,32 +147,14 @@ Deno.serve(async (req) => {
             attachments: [{ filename: `pasaje-${ticket.id}.pdf`, content: base64(pdf) }]
           })
         });
-        if (response.ok) emailSent++;
-        else {
-          emailFailed++;
-          emailErrors.push({ ticket_id: ticket.id, reason: `RESEND_HTTP_${response.status}` });
-        }
+        if (response.ok) sent++;
+        else errors.push({ ticket_id: ticket.id, reason: `RESEND_HTTP_${response.status}` });
       } catch (error) {
-        emailFailed++;
-        emailErrors.push({
-          ticket_id: ticket.id,
-          reason: error instanceof Error ? error.message : 'EMAIL_SEND_FAILED'
-        });
+        errors.push({ ticket_id: ticket.id, reason: error instanceof Error ? error.message : 'EMAIL_SEND_FAILED' });
       }
     }
-
-    return json({
-      ...result,
-      email: { sent: emailSent, failed: emailFailed, ...(emailFailed ? { reason: 'EMAIL_SEND_FAILED', errors: emailErrors } : {}) }
-    }, 201);
+    return json({ sent, failed: errors.length, ...(errors.length ? { reason: 'EMAIL_SEND_FAILED', errors } : {}) });
   } catch (error) {
-    if (committedSale) {
-      const unprocessed = committedSale.tickets.length - emailSent - emailFailed;
-      return json({
-        ...committedSale,
-        email: { sent: emailSent, failed: emailFailed + unprocessed, reason: 'EMAIL_PROCESSING_FAILED' }
-      }, 201);
-    }
     return json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });

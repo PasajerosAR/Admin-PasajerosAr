@@ -31,16 +31,18 @@ const LINKS: [string, string, boolean][] = [
   ['/admin/disposiciones', 'Disposiciones de asientos', false],
   ['/admin/conductores', 'Conductores', false],
   ['/admin/ventas', 'Resumen de ventas', false],
-  ['/admin/ventas/vender', 'Vender pasaje', false],
+  ['/admin/ventas/vender', 'Ventanilla', false],
   ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/caja', 'Cierre de caja', false],
   ['/admin/ventas/tarifas', 'Tarifas', false],
   ['/admin/ventas/mercadopago', 'Mercado Pago', false],
   ['/admin/ventas/usuarios', 'Usuarios de empresa', false],
   ['/admin/ventas/reportes', 'Reportes de ventas', false]
 ];
 const SELLER_LINKS: [string, string, boolean][] = [
-  ['/admin/ventas/vender', 'Vender pasaje', false],
+  ['/admin/ventas/vender', 'Ventanilla', false],
   ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/caja', 'Cierre de caja', false],
   ['/admin/ventas/reportes', 'Reportes de ventas', false]
 ];
 const SUPPORT_LINKS: [string, string, boolean][] = [

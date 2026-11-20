@@ -6,6 +6,8 @@ import type { SaleTicket } from '../../lib/types';
 import { TICKET_STATUS_LABEL } from '../../lib/types';
 import { RefundModal } from './RefundModal';
 import { useAuth } from '../../auth/AuthProvider';
+import { printTickets } from '../../lib/ticketPrint';
+import { friendly } from '../../lib/errors';
 
 interface TicketRow extends SaleTicket {
   sales: {
@@ -17,6 +19,7 @@ interface TicketRow extends SaleTicket {
     scheduled_departure: string;
     service_date: string;
     services: { code: string } | null;
+    service_departures: { routes: { name: string } | null } | null;
   } | null;
   from_stop: { name: string } | null;
   to_stop:   { name: string } | null;
@@ -37,7 +40,7 @@ export function TicketsPage() {
       .select(`
         *,
         sales(payment_method, created_at, seller:profiles!sales_seller_id_fkey(full_name)),
-        trips(scheduled_departure, service_date, services(code)),
+        trips(scheduled_departure, service_date, services(code), service_departures(routes(name))),
         from_stop:route_stops!sale_tickets_from_stop_id_fkey(name),
         to_stop:route_stops!sale_tickets_to_stop_id_fkey(name)
       `)
@@ -47,6 +50,20 @@ export function TicketsPage() {
     if (statusFilter !== 'all') q = q.eq('status', statusFilter);
     return must(await q) as unknown as TicketRow[];
   }, [dateFrom, dateTo, statusFilter]);
+
+  const company = useQuery(async () => must(await supabase.from('companies').select('name').limit(1)) as { name: string }[], []);
+  const reprint = async (t: TicketRow) => {
+    try {
+      await printTickets([{
+        qr_code: t.qr_code, seat_label: t.seat_label, price: t.price, passenger_name: t.passenger_name, passenger_dni: t.passenger_dni,
+        from: t.from_stop?.name ?? '', to: t.to_stop?.name ?? ''
+      }], {
+        company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
+        date: t.trips ? new Date(`${t.trips.service_date}T12:00:00`).toLocaleDateString('es-AR') : '',
+        departure: t.trips ? formatTime(t.trips.scheduled_departure) : ''
+      }, (() => { try { return window.localStorage.getItem('ventanilla.format') === 'a4' ? 'a4' as const : 'ticket' as const; } catch { return 'ticket' as const; } })());
+    } catch (e) { setMsg({ kind: 'error', text: friendly(e) }); }
+  };
 
   const filtered = (tickets.data ?? []).filter((t) => {
     if (!search) return true;
@@ -174,6 +191,7 @@ export function TicketsPage() {
                       )}
                     </td>
                     <td>
+                      {t.status !== 'cancelled' && <button className="secondary" style={{ fontSize: 12, minHeight: 32, padding: '0 10px', marginRight: 6 }} onClick={() => void reprint(t)}>Imprimir</button>}
                       {t.status === 'valid' && (profile?.role === 'company_admin' || profile?.role === 'seller') && (
                         <button className="danger" style={{ fontSize: 12, minHeight: 32, padding: '0 10px' }}
                           onClick={() => setCancellingId(t.id)}>

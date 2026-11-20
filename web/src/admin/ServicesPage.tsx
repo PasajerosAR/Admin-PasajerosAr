@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Route, RouteStop, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
@@ -16,6 +16,7 @@ export function ServicesPage() {
   const { profile } = useAuth();
   const canEdit = profile?.role === 'company_admin';
   const [folder, setFolder] = useState<DayType>('weekday');
+  const [q, setQ] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // id o 'nuevo'
   const [code, setCode] = useState('');
   const [deps, setDeps] = useState<DepForm[]>([]);
@@ -202,12 +203,13 @@ export function ServicesPage() {
         ))}
       </div>
       <div className="card table-wrap">
+        <FilterBox value={q} onChange={setQ} placeholder="Buscar servicio" />
         {services.loading ? <Loading /> : (
           <table>
             <thead><tr><th>Servicio</th><th>Salidas de {DAY_TYPE_LABEL[folder].toLowerCase()} (letras: H hábil, S sábado, D domingo, F feriado)</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {folderServices.length === 0 && <tr><td colSpan={4} className="muted">No hay servicios con salidas de {DAY_TYPE_LABEL[folder].toLowerCase()}.</td></tr>}
-              {folderServices.map((s) => (
+              {folderServices.filter((s) => matches(q, s.code)).length === 0 && <tr><td colSpan={4} className="muted">No hay servicios con salidas de {DAY_TYPE_LABEL[folder].toLowerCase()}.</td></tr>}
+              {folderServices.filter((s) => matches(q, s.code)).map((s) => (
                 <tr key={s.id}>
                   <td><b>{s.code}</b></td>
                   <td>{summary(s)}</td>

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import { VEHICLE_KIND_LABEL, VEHICLE_STATUS_LABEL, type SeatLayout, type Vehicle, type VehicleStatus } from '../lib/types';
 
@@ -17,6 +17,8 @@ export function VehiclesPage() {
   const vehicles = useQuery(async () => must(await supabase.from('vehicles').select('*').order('internal_number')) as Vehicle[], []);
   const layouts = useQuery(async () => must(await supabase.from('seat_layouts').select('*').order('name').order('version', { ascending: false })) as SeatLayout[], []);
   const floors = useQuery(async () => must(await supabase.from('layout_floors').select('layout_id,floor')) as { layout_id: string; floor: number }[], []);
+  const [q, setQ] = useState('');
+  const visible = (vehicles.data ?? []).filter((v) => matches(q, v.internal_number, v.plate, v.brand, v.model));
   const floorCount = (id: string | null) => new Set((floors.data ?? []).filter((f) => f.layout_id === id).map((f) => f.floor)).size;
   const layoutLabel = (layout: SeatLayout) => `${layout.name} (v${layout.version}, ${floorCount(layout.id) || '-'} ${floorCount(layout.id) === 1 ? 'piso' : 'pisos'})`;
 
@@ -68,12 +70,13 @@ export function VehiclesPage() {
         </form>
       )}
       <div className="card table-wrap">
+        <FilterBox value={q} onChange={setQ} placeholder="Buscar por interno o patente" />
         {vehicles.loading ? <Loading /> : (
           <table>
             <thead><tr><th>Interno</th><th>Tipo</th><th>Patente</th><th>Marca y modelo</th><th>Estado</th><th>Disposición</th></tr></thead>
             <tbody>
-              {(vehicles.data ?? []).length === 0 && <tr><td colSpan={6} className="muted">Todavía no hay vehículos.</td></tr>}
-              {(vehicles.data ?? []).map((v) => (
+              {visible.length === 0 && <tr><td colSpan={6} className="muted">{(vehicles.data ?? []).length === 0 ? 'Todavía no hay vehículos.' : 'Ningún vehículo coincide.'}</td></tr>}
+              {visible.map((v) => (
                 <tr key={v.id}>
                   <td><b>{v.internal_number}</b></td>
                   <td>{floorCount(v.layout_id) > 1 ? `${VEHICLE_KIND_LABEL[v.kind]} doble piso` : VEHICLE_KIND_LABEL[v.kind]}</td>
