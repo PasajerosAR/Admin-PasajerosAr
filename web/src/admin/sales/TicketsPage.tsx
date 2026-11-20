@@ -6,7 +6,7 @@ import type { PaymentMethod, SaleTicket } from '../../lib/types';
 import { PAYMENT_METHOD_LABEL, TICKET_STATUS_LABEL } from '../../lib/types';
 import { RefundModal } from './RefundModal';
 import { useAuth } from '../../auth/AuthProvider';
-import { printTickets } from '../../lib/ticketPrint';
+import { printTickets, type PrintFormat } from '../../lib/ticketPrint';
 import { friendly } from '../../lib/errors';
 
 interface TicketRow extends SaleTicket {
@@ -34,6 +34,10 @@ export function TicketsPage() {
   const [dateFrom, setDateFrom] = useState(todayLocal());
   const [dateTo, setDateTo]   = useState(todayLocal());
   const [statusFilter, setStatusFilter] = useState<SaleTicket['status'] | 'all'>('all');
+  const [printFormat, setPrintFormat] = useState<PrintFormat>(() => {
+    try { return window.localStorage.getItem('ventanilla.format') === 'a4' ? 'a4' : 'ticket'; }
+    catch { return 'ticket'; }
+  });
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
 
@@ -69,7 +73,7 @@ export function TicketsPage() {
         company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
         date: t.trips ? new Date(`${t.trips.service_date}T12:00:00`).toLocaleDateString('es-AR') : '',
         departure: t.trips ? formatTime(t.trips.scheduled_departure) : ''
-      }, (() => { try { return window.localStorage.getItem('ventanilla.format') === 'a4' ? 'a4' as const : 'ticket' as const; } catch { return 'ticket' as const; } })());
+      }, printFormat);
     } catch (e) { setMsg({ kind: 'error', text: friendly(e) }); }
   };
 
@@ -124,6 +128,17 @@ export function TicketsPage() {
               <option value="valid">Válido</option>
               <option value="boarded">Abordó</option>
               <option value="cancelled">Cancelado</option>
+            </select>
+          </label>
+          <label>
+            Imprimir en
+            <select value={printFormat} onChange={(e) => {
+              const value = e.target.value as PrintFormat;
+              setPrintFormat(value);
+              try { window.localStorage.setItem('ventanilla.format', value); } catch { /* sin almacenamiento */ }
+            }}>
+              <option value="ticket">Ticket 80 mm</option>
+              <option value="a4">Hoja A4</option>
             </select>
           </label>
           <label>
