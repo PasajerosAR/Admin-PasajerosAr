@@ -75,7 +75,7 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
       <div class="compact-amount"><span>IMPORTE</span><b>${money(t.price)}</b></div>
 
 
-      <footer class="passenger-info-compact"><b>INFORMACIÓN PARA EL PASAJERO</b><p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p><b class="conditions">DATOS OBLIGATORIOS: RESOLUCIÓN 47/2005. PRESENTARSE CON DNI FÍSICO.<br><br>CONDICIONES GENERALES:<br><br>1. DEVOLUCIÓN DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Más de 48 hs: 90%. Únicamente al titular con DNI.<br><br>2. CANJE: No se admiten cambios de fecha/hora, solo devolución bajo condiciones vigentes.<br><br>3. TARJETAS: Boletos con crédito/débito no tienen devolución en efectivo.<br><br>4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95).<br><br>5. EQUIPAJE DE MANO: Sin responsabilidad por pérdida.<br><br>6. VALIDEZ: Solo válido con comprobante de control y en fecha/hora indicada.<br><br>7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonarán pasaje completo. Res. SGT 43/2018.<br><br>8. ACEPTACIÓN: La compra implica aceptación de normas vigentes.<br><br>9. SEGURO: Responsabilidad Civil contratada.<br><br>10. ASIENTO: Sujeto a cambio por unidad.<br><br>11. CONTROL: Presentar al guarda/inspector si se requiere.<br><br>12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).</b></footer>
+      <footer class="passenger-info-compact"><b>INFORMACIÓN PARA EL PASAJERO</b><p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p> <p>DATOS OBLIGATORIOS: RESOLUCIÓN 47/2005. PRESENTARSE CON DNI FÍSICO. CONDICIONES GENERALES: 1. DEVOLUCIÓN DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Más de 48 hs: 90%. Únicamente al titular con DNI. 2. CANJE: No se admiten cambios de fecha/hora, solo devolución bajo condiciones vigentes. 3. TARJETAS: Boletos con crédito/débito no tienen devolución en efectivo. 4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95). 5. EQUIPAJE DE MANO: Sin responsabilidad por pérdida. 6. VALIDEZ: Solo válido con comprobante de control y en fecha/hora indicada. 7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonarán pasaje completo. Res. SGT 43/2018. 8. ACEPTACIÓN: La compra implica aceptación de normas vigentes. 9. SEGURO: Responsabilidad Civil contratada. 10. ASIENTO: Sujeto a cambio por unidad. 11. CONTROL: Presentar al guarda/inspector si se requiere. 12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).</p></footer>
     </section>`).join('').replace(/<br><br>/g, ' ');
 
 
@@ -122,11 +122,11 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .amount { color: var(--brand); font-size: 23px }
     .qr { display: block; width: 42mm; height: 42mm; object-fit: contain }
     .passenger-info { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 9px }
-    .passenger-info > b { color: var(--brand); letter-spacing: .06em }
-    .passenger-info p { margin: 6px 0 0 }
-    .passenger-info-compact { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 7px; line-height: 1.25 }
-    .passenger-info-compact > b { color: var(--brand); letter-spacing: .04em }
-    .passenger-info-compact p { margin: 4px 0 0 }
+    .passenger-info > b { color: var(--brand); letter-spacing: .03em }
+    .passenger-info p { margin: 6px 0 0; letter-spacing: .03em }
+    .passenger-info-compact { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 8px }
+    .passenger-info-compact > b { color: var(--brand); letter-spacing: .04em; font-size: 8px }
+    .passenger-info-compact p { margin: 6px 0 0; letter-spacing: .04em; font-size: 8px }
     .passenger-info .conditions, .passenger-info-compact .conditions { display: block; font-size: inherit; color: var(--ink); line-height: 1.15; margin-top: 3px }
     .compact { text-align: center; color: #182d3e }
     .compact-header { padding: 10px 4px 9px; border-bottom: 2px solid var(--brand) }
@@ -143,7 +143,7 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .compact-route > span { color: var(--brand); font-size: 18px }
     .compact-stops { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left }
     .compact-stops > div { display: grid; gap: 3px }
-    .compact-trip { padding: 7px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 4px; font-size: 14px }
+    .compact-trip { padding: 7px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 4px; font-size: 12px }
     .compact-passenger { display: grid; gap: 3px; padding: 8px 2px; text-align: left }
     .compact-passenger span { color: var(--muted); font-size: 12px }
     .compact-passenger b { font-size: 15px }

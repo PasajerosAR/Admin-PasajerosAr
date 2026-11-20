@@ -7,9 +7,14 @@ import { useAuth } from '../auth/AuthProvider';
 import type { Route, RouteStop, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
 
-interface Times { minutes_from_start: number; dwell_minutes: number }
+interface Times { minutes_from_start: number; dwell_minutes: number; publish_from_web?: boolean }
 interface DepForm { id: string | null; route_id: string; time: string; types: DayType[]; active: boolean }
 const blankDep = (route_id = ''): DepForm => ({ id: null, route_id, time: '08:00', types: ['weekday', 'saturday', 'sunday'], active: true });
+const addMinutesToTime = (time: string, minutes: number) => {
+  const [hours, mins] = time.split(':').map(Number);
+  const total = (hours * 60 + mins + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
 
 // Un servicio agrupa varias salidas (de ida y de vuelta). Los tiempos por parada son iguales para todas las salidas de un mismo sentido.
 export function ServicesPage() {
@@ -40,7 +45,7 @@ export function ServicesPage() {
     for (const rid of rids) stopsOf(rid).forEach((s, i) => {
       if (next[s.id]) return;
       const p = saved.find((x) => x.route_stop_id === s.id) ?? standard.data?.find((x) => x.route_stop_id === s.id);
-      next[s.id] = p ? { minutes_from_start: p.minutes_from_start, dwell_minutes: p.dwell_minutes } : { minutes_from_start: i * 20, dwell_minutes: 0 };
+      next[s.id] = p ? { minutes_from_start: p.minutes_from_start, dwell_minutes: p.dwell_minutes, publish_from_web: p.publish_from_web ?? false } : { minutes_from_start: i * 20, dwell_minutes: 0, publish_from_web: false };
     });
     return next;
   };
@@ -62,12 +67,19 @@ export function ServicesPage() {
   const save = async (e: FormEvent) => {
     e.preventDefault();
     const existing = services.data?.find((s) => s.id === editing);
-    const { error } = await supabase.rpc('save_service', {
+    const { data: savedServiceId, error } = await supabase.rpc('save_service', {
       p_service: editing === 'nuevo' ? null : editing, p_code: code, p_active: existing?.active ?? true,
       p_departures: deps.map((d) => ({ id: d.id, route_id: d.route_id, time: d.time, day_types: d.types, active: d.active })),
       p_stops: usedRoutes.flatMap((rid) => stopsOf(rid).map((s) => ({ route_stop_id: s.id, ...times[s.id] })))
     });
     if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    const savedFlags = await Promise.all(usedRoutes.map((rid) => supabase.rpc('save_service_web_departures', {
+      p_service: savedServiceId,
+      p_route: rid,
+      p_stop_ids: stopsOf(rid).filter((stop, index, routeStops) => index > 0 && index < routeStops.length - 1 && times[stop.id]?.publish_from_web).map((stop) => stop.id)
+    })));
+    const flagError = savedFlags.find((result) => result.error)?.error;
+    if (flagError) { setMsg({ kind: 'error', text: `El servicio se guardó, pero no se pudieron guardar las salidas publicadas en la web: ${friendly(flagError)}` }); return; }
     // la primera vez que se cargan los tiempos de un sentido quedan como estándar
     const fresh = usedRoutes.filter((rid) => !hasStandard(rid));
     if (fresh.length) await saveStandard(fresh);
@@ -167,22 +179,41 @@ export function ServicesPage() {
           </div>
 
           {usedRoutes.map((rid) => (
-            <div key={rid} className="table-wrap">
+            <div key={rid} className="table-wrap service-times">
               <table>
                 <caption className="muted" style={{ textAlign: 'left', paddingBottom: 6 }}>Tiempos en cada parada: <b>{routeName(rid)}</b> (valen para todas sus salidas)
                   <span style={{ marginLeft: 10 }}>
                     <button type="button" className="secondary" disabled={!hasStandard(rid)} onClick={() => useStandard(rid)}>Usar horarios estándar</button>{' '}
                     <button type="button" className="secondary" onClick={async () => { if (await saveStandard([rid])) setMsg({ kind: 'ok', text: `Horarios estándar de ${routeName(rid)} guardados.` }); }}>Guardar como estándar</button>
                   </span></caption>
-                <thead><tr><th>#</th><th>Parada</th><th>Minutos desde la salida</th><th>Permanencia (min)</th></tr></thead>
+                <thead><tr><th>#</th><th>Parada</th><th>Minutos desde la salida</th><th>Permanencia (min)</th><th>Salida independiente en la web</th></tr></thead>
                 <tbody>
-                  {stopsOf(rid).map((s, i) => (
+                  {stopsOf(rid).map((s, i, routeStops) => (
                     <tr key={s.id}>
                       <td>{i + 1}</td><td>{s.name}</td>
-                      <td><input aria-label={`Minutos en ${s.name}`} type="number" min={0} disabled={i === 0} value={times[s.id]?.minutes_from_start ?? 0}
+                      <td><input className="service-time-number" aria-label={`Minutos desde la salida en ${s.name}`} type="number" min={0} disabled={i === 0} value={times[s.id]?.minutes_from_start ?? 0}
                         onChange={(e) => patchTime(s.id, { minutes_from_start: Number(e.target.value) })} /></td>
-                      <td><input aria-label={`Permanencia en ${s.name}`} type="number" min={0} value={times[s.id]?.dwell_minutes ?? 0}
+                      <td><input className="service-time-number" aria-label={`Permanencia en ${s.name}`} type="number" min={0} value={times[s.id]?.dwell_minutes ?? 0}
                         onChange={(e) => patchTime(s.id, { dwell_minutes: Number(e.target.value) })} /></td>
+                      <td>
+                        {i > 0 && i < routeStops.length - 1 && (
+                          <div className="service-web-controls">
+                            <label className="service-web-toggle" aria-label={`Publicar ${s.name} como salida independiente en la web`}>
+                              <input type="checkbox" checked={times[s.id]?.publish_from_web ?? false}
+                                onChange={(e) => patchTime(s.id, { publish_from_web: e.target.checked })} />
+                            </label>
+                            <div className="service-web-previews">
+                              {deps.filter((departure) => departure.route_id === rid).map((departure) => {
+                                const minutes = times[s.id]?.minutes_from_start ?? 0;
+                                const arrival = addMinutesToTime(departure.time, minutes);
+                                return <div className="service-web-preview" key={`${departure.id ?? 'new'}-${departure.time}`}>
+                                  {departure.time} + {minutes} min = <b>llegada {arrival}</b>
+                                </div>;
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

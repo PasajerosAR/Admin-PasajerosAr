@@ -40,7 +40,7 @@ create temp table tq_sale as
 select public.taquilla_sell((select id from tq), 'cash',
   '[{"seat_label":"1","from_stop_id":"44444444-0000-0000-0000-000000000001","to_stop_id":"44444444-0000-0000-0000-000000000003","passenger_name":"Juan Perez","passenger_dni":"30111222"}]'::jsonb) as r;
 grant all on tq_sale to authenticated;
-select t.expect_eq((select r->>'total' from tq_sale), '2500.00', 'la taquilla cobra la tarifa del tramo');
+select t.expect_eq((select r->>'total' from tq_sale), '2300.00', 'la taquilla cobra la tarifa del tramo y de la clase del asiento');
 select t.expect_eq((select passenger_name || ' ' || passenger_dni from public.sale_tickets where sale_id = (select (r->>'sale_id')::uuid from tq_sale)), 'Juan Perez 30111222', 'queda registrado nombre y DNI');
 select t.expect_eq((select count(*) from public.taquilla_seat_status((select id from tq)) where kind = 'sold'), 1::bigint,
   'la venta aparece como vendida');

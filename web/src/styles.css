@@ -382,6 +382,14 @@ button.compact { min-height: 32px; padding: 0 12px; font-size: 13px; }
 .filter-box { max-width: 320px; margin-bottom: 10px; }
 .search-select input { width: 100%; }
 td select, td input { min-height: 32px; }
+.service-times td input.service-time-number { width: 112px; min-width: 112px; max-width: 112px; }
+.service-times th:last-child { min-width: 290px; }
+.service-web-controls { display: flex; align-items: center; gap: 7px; min-height: 32px; }
+.service-web-toggle { display: inline-flex; align-items: center; margin: 0; }
+.service-web-toggle input { width: 16px !important; min-height: 16px !important; height: 16px; }
+.service-web-previews { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.service-web-preview { width: fit-content; color: #33566b; font-size: 11px; white-space: nowrap; }
+.service-web-preview b { color: var(--brand); }
 @media (max-width: 820px) {
   .row > label, .row > .search-select, .row > label.grow, .row > .grow { flex: 1 1 100%; max-width: none; }
   .card > label, .stack > label { max-width: none; }
