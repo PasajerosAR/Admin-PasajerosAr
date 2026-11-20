@@ -76,7 +76,7 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
 
 
       <footer class="passenger-info-compact"><b>INFORMACIÓN PARA EL PASAJERO</b><p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p><p class="conditions">DATOS OBLIGATORIOS: RESOLUCIÓN 47/2005. PRESENTARSE CON DNI FÍSICO.<br><br>CONDICIONES GENERALES:<br><br>1. DEVOLUCIÓN DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Más de 48 hs: 90%. Únicamente al titular con DNI.<br><br>2. CANJE: No se admiten cambios de fecha/hora, solo devolución bajo condiciones vigentes.<br><br>3. TARJETAS: Boletos con crédito/débito no tienen devolución en efectivo.<br><br>4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95).<br><br>5. EQUIPAJE DE MANO: Sin responsabilidad por pérdida.<br><br>6. VALIDEZ: Solo válido con comprobante de control y en fecha/hora indicada.<br><br>7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonarán pasaje completo. Res. SGT 43/2018.<br><br>8. ACEPTACIÓN: La compra implica aceptación de normas vigentes.<br><br>9. SEGURO: Responsabilidad Civil contratada.<br><br>10. ASIENTO: Sujeto a cambio por unidad.<br><br>11. CONTROL: Presentar al guarda/inspector si se requiere.<br><br>12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).</p></footer>
-    </section>`).join('');
+    </section>`).join('').replace(/<br><br>/g, ' ');
 
 
   const pageStyle = a4
@@ -127,7 +127,7 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .passenger-info-compact { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 7px; line-height: 1.25 }
     .passenger-info-compact > b { color: var(--brand); letter-spacing: .04em }
     .passenger-info-compact p { margin: 4px 0 0 }
-    .passenger-info .conditions, .passenger-info-compact .conditions { font-size: inherit; color: var(--ink) }
+    .passenger-info .conditions, .passenger-info-compact .conditions { font-size: inherit; color: var(--ink); line-height: 1.15; margin-top: 3px }
     .compact { text-align: center; color: #182d3e }
     .compact-header { padding: 10px 4px 9px; border-bottom: 2px solid var(--brand) }
     .compact-header h1 { font-size: 16px; color: var(--brand); margin: 2px 0 }
