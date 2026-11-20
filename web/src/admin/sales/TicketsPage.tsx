@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice, formatTime, todayLocal } from '../../ui';
-import type { SaleTicket } from '../../lib/types';
-import { TICKET_STATUS_LABEL } from '../../lib/types';
+import type { PaymentMethod, SaleTicket } from '../../lib/types';
+import { PAYMENT_METHOD_LABEL, TICKET_STATUS_LABEL } from '../../lib/types';
 import { RefundModal } from './RefundModal';
 import { useAuth } from '../../auth/AuthProvider';
 import { printTickets } from '../../lib/ticketPrint';
@@ -11,8 +11,11 @@ import { friendly } from '../../lib/errors';
 
 interface TicketRow extends SaleTicket {
   sales: {
-    payment_method: string;
+    payment_method: PaymentMethod;
     created_at: string;
+    channel: 'counter' | 'web';
+    receipt_number: number;
+    notes: string | null;
     seller: { full_name: string } | null;
   } | null;
   trips: {
@@ -39,7 +42,7 @@ export function TicketsPage() {
       .from('sale_tickets')
       .select(`
         *,
-        sales(payment_method, created_at, seller:profiles!sales_seller_id_fkey(full_name)),
+        sales(payment_method, created_at, channel, receipt_number, notes, seller:profiles!sales_seller_id_fkey(full_name)),
         trips(scheduled_departure, service_date, services(code), service_departures(routes(name))),
         from_stop:route_stops!sale_tickets_from_stop_id_fkey(name),
         to_stop:route_stops!sale_tickets_to_stop_id_fkey(name)
@@ -56,7 +59,12 @@ export function TicketsPage() {
     try {
       await printTickets([{
         qr_code: t.qr_code, seat_label: t.seat_label, price: t.price, passenger_name: t.passenger_name, passenger_dni: t.passenger_dni,
-        from: t.from_stop?.name ?? '', to: t.to_stop?.name ?? ''
+        from: t.from_stop?.name ?? '', to: t.to_stop?.name ?? '',
+        receiptNumber: t.sales?.receipt_number ?? t.id.slice(0, 8),
+        salesChannel: t.sales?.channel === 'web' ? 'Web · Punto de venta' : t.sales?.notes === 'Venta en taquilla' ? 'Taquilla del conductor' : 'Ventanilla',
+        paymentMethod: t.sales ? PAYMENT_METHOD_LABEL[t.sales.payment_method] : 'No disponible',
+        issueDate: t.sales ? new Date(t.sales.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }) : '',
+        ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
       }], {
         company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
         date: t.trips ? new Date(`${t.trips.service_date}T12:00:00`).toLocaleDateString('es-AR') : '',
@@ -156,6 +164,7 @@ export function TicketsPage() {
                     <td>
                       <b>{t.passenger_name}</b>
                       {t.is_complimentary && <span className="pill info" style={{ marginLeft: 6 }}>Cortesía</span>}
+                      {t.ticket_type === 'disability' && <span className="pill info" style={{ marginLeft: 6 }}>Discapacidad</span>}
                       <div className="muted" style={{ fontSize: 11 }}>{t.passenger_email}</div>
                     </td>
                     <td>{t.passenger_dni}</td>
@@ -175,7 +184,7 @@ export function TicketsPage() {
                     <td>{t.seat_label ?? <span className="muted">—</span>}</td>
                     <td><b>${Number(t.price).toFixed(2)}</b></td>
                     <td className="muted" style={{ fontSize: 12 }}>
-                      {t.sales?.payment_method ?? '—'}
+                      {t.sales?.payment_method ? PAYMENT_METHOD_LABEL[t.sales.payment_method] : '—'}
                     </td>
                     <td className="muted" style={{ fontSize: 12 }}>
                       {t.sales?.seller?.full_name ?? '—'}

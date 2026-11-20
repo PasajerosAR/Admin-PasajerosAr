@@ -12,6 +12,7 @@ import { printTickets, type PrintFormat, type PrintableTicket } from '../../lib/
 import { SearchSelect } from '../SearchSelect';
 
 type Method = 'cash' | 'debit' | 'credit' | 'transfer';
+type TicketKind = 'regular' | 'courtesy' | 'disability';
 const METHODS: { key: Method; label: string }[] = [
   { key: 'cash', label: 'Efectivo' }, { key: 'debit', label: 'Débito' }, { key: 'credit', label: 'Crédito' }, { key: 'transfer', label: 'Transferencia' }
 ];
@@ -22,12 +23,12 @@ interface TripOption {
   id: string; scheduled_departure: string; status: string; layout_id: string | null;
   services: { code: string } | null; service_departures: { route_id: string; routes: { name: string } | null } | null;
 }
-interface Pax { dni: string; name: string; email: string; found?: string }
+interface Pax { dni: string; name: string; email: string; ticketKind?: TicketKind; found?: string }
 interface SoldTicket {
   id: string; qr_code: string; seat_label: string; price: number; passenger_name: string; passenger_dni: string;
-  email: string | null; from_stop_id: string; to_stop_id: string;
+  email: string | null; from_stop_id: string; to_stop_id: string; ticket_type: TicketKind;
 }
-interface Sale { sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method }
+interface Sale { sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method | 'complimentary'; receipt_number: number; channel: 'counter' | 'web'; created_at: string }
 
 export function VentanillaPage() {
   const [date, setDate] = useState(todayLocal());
@@ -93,7 +94,12 @@ export function VentanillaPage() {
     c, validTrip && seatOccupied(reservations.data ?? [], c.label, fromPos, toPos),
     validTrip ? priceFor(prices.data ?? [], fromPos, toPos, c.seat_class) : null, picked.includes(c.id));
   const chosen = picked.map((id) => all.find((c) => c.id === id)).filter((c): c is TaquillaCell => !!c)
-    .map((c) => ({ label: c.label ?? '?', seatClass: seatClassName(c), price: priceFor(prices.data ?? [], fromPos, toPos, c.seat_class) ?? 0 }))
+    .map((c) => {
+      const label = c.label ?? '?';
+      const ticketKind = pax[label]?.ticketKind ?? 'regular';
+      const fare = priceFor(prices.data ?? [], fromPos, toPos, c.seat_class) ?? 0;
+      return { label, seatClass: seatClassName(c), fare, ticketKind, price: ticketKind === 'regular' ? fare : 0 };
+    })
     .sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true }));
   const total = chosen.reduce((n, s) => n + s.price, 0);
   const floorClass = (n: number) => {
@@ -144,7 +150,11 @@ export function VentanillaPage() {
   });
   const printable = (s: Sale): PrintableTicket[] => s.tickets.map((t) => ({
     qr_code: t.qr_code, seat_label: t.seat_label, price: t.price, passenger_name: t.passenger_name, passenger_dni: t.passenger_dni,
-    from: stopName(t.from_stop_id), to: stopName(t.to_stop_id)
+    from: stopName(t.from_stop_id), to: stopName(t.to_stop_id),
+    receiptNumber: s.receipt_number, salesChannel: s.channel === 'web' ? 'Web · Punto de venta' : 'Ventanilla',
+    paymentMethod: s.method === 'complimentary' ? 'Sin cargo' : METHODS.find((m) => m.key === s.method)?.label ?? s.method,
+    issueDate: new Date(s.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }),
+    ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
   }));
   const print = async (s: Sale) => {
     try { await printTickets(printable(s), info(), format); } catch (e) { setError(friendly(e)); }
@@ -159,10 +169,11 @@ export function VentanillaPage() {
       const seats = chosen.map((s) => ({
         seat_label: s.label, from_stop_id: fromId, to_stop_id: toId,
         passenger_name: pax[s.label].name.trim(), passenger_dni: pax[s.label].dni.replace(/\D/g, ''),
-        passenger_email: (pax[s.label].email ?? '').trim()
+        passenger_email: (pax[s.label].email ?? '').trim(), ticket_type: s.ticketKind
       }));
       const r = must(await supabase.rpc('taquilla_sell', { p_trip: tripId, p_payment_method: method, p_seats: seats })) as { sale_id: string; total: number; tickets: SoldTicket[] };
-      const done: Sale = { ...r, method, email: null };
+      const saleMeta = must(await supabase.from('sales').select('receipt_number,channel,created_at').eq('id', r.sale_id).single()) as Pick<Sale, 'receipt_number' | 'channel' | 'created_at'>;
+      const done: Sale = { ...r, ...saleMeta, method: r.total === 0 ? 'complimentary' : method, email: null };
       setSale(done); setPicked([]); setPax({}); setHoldUntil(null); reloadRanges();
       void print(done);   // sale la impresión en el momento
       if (r.tickets.some((t) => t.email)) {
@@ -190,7 +201,7 @@ export function VentanillaPage() {
       {sale && (
         <div className="card stack">
           <h2>Venta registrada · {formatMoney(sale.total)}</h2>
-          <p className="muted">{METHODS.find((m) => m.key === sale.method)?.label} · {sale.tickets.length} pasaje{sale.tickets.length === 1 ? '' : 's'}: {sale.tickets.map((t) => `${t.passenger_name} (asiento ${t.seat_label})`).join(', ')}</p>
+          <p className="muted">{sale.method === 'complimentary' ? 'Sin cargo' : METHODS.find((m) => m.key === sale.method)?.label} · {sale.tickets.length} pasaje{sale.tickets.length === 1 ? '' : 's'}: {sale.tickets.map((t) => `${t.passenger_name} (asiento ${t.seat_label}${t.ticket_type === 'courtesy' ? ', gentileza' : t.ticket_type === 'disability' ? ', discapacidad' : ''})`).join(', ')}</p>
           {sale.email && <Notice kind={sale.email.failed ? 'error' : 'ok'}>{sale.email.failed ? `No se pudieron enviar ${sale.email.failed} correos${sale.email.reason === 'RESEND_NOT_CONFIGURED' ? ' (el envío de correos no está configurado)' : ''}.` : `Se enviaron ${sale.email.sent} pasajes por correo.`}</Notice>}
           <div className="row">
             <button type="button" onClick={() => void print(sale)}>Imprimir de nuevo</button>
@@ -261,6 +272,13 @@ export function VentanillaPage() {
           {chosen.map((s) => (
             <div key={s.label} className="vt-pax">
               <b>Asiento {s.label}</b><span className="muted">{s.seatClass} · {formatMoney(s.price)}</span>
+              <label>Tipo de pasaje
+                <select value={pax[s.label]?.ticketKind ?? 'regular'} onChange={(e) => setField(s.label, { ticketKind: e.target.value as TicketKind })}>
+                  <option value="regular">Regular · {formatMoney(s.fare)}</option>
+                  <option value="courtesy">Gentileza · sin cargo</option>
+                  <option value="disability">Discapacidad · sin cargo</option>
+                </select>
+              </label>
               <input aria-label={`DNI, asiento ${s.label}`} placeholder="DNI" inputMode="numeric" maxLength={12} value={pax[s.label]?.dni ?? ''}
                 onChange={(e) => setField(s.label, { dni: e.target.value })} onBlur={() => void lookup(s.label)} />
               <input aria-label={`Nombre y apellido, asiento ${s.label}`} placeholder="Nombre y apellido" maxLength={150} value={pax[s.label]?.name ?? ''}

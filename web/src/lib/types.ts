@@ -126,6 +126,8 @@ export interface Sale {
   seller_id: string;
   trip_id: string;
   payment_method: PaymentMethod;
+  channel: 'counter' | 'web';
+  receipt_number: number;
   mp_payment_id: string | null;
   total: number;
   status: SaleStatus;
@@ -151,6 +153,7 @@ export interface SaleTicket {
   price: number;
   qr_code: string;
   is_complimentary: boolean;
+  ticket_type: 'regular' | 'courtesy' | 'disability';
   status: TicketStatus;
   boarded_at: string | null;
   cancelled_at: string | null;
