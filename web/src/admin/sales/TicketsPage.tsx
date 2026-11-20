@@ -22,7 +22,7 @@ interface TicketRow extends SaleTicket {
     scheduled_departure: string;
     service_date: string;
     services: { code: string } | null;
-    service_departures: { routes: { name: string } | null } | null;
+    service_departures: { routes: { name: string; origin: { name: string } | null; destination: { name: string } | null } | null } | null;
   } | null;
   from_stop: { name: string } | null;
   to_stop:   { name: string } | null;
@@ -47,7 +47,7 @@ export function TicketsPage() {
       .select(`
         *,
         sales(payment_method, created_at, channel, receipt_number, notes, seller:profiles!sales_seller_id_fkey(full_name)),
-        trips(scheduled_departure, service_date, services(code), service_departures(routes(name))),
+        trips(scheduled_departure, service_date, services(code), service_departures(routes(name, origin:places!routes_origin_place_id_fkey(name), destination:places!routes_destination_place_id_fkey(name)))),
         from_stop:route_stops!sale_tickets_from_stop_id_fkey(name),
         to_stop:route_stops!sale_tickets_to_stop_id_fkey(name)
       `)
@@ -71,6 +71,7 @@ export function TicketsPage() {
         ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
       }], {
         company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
+        origin: t.trips?.service_departures?.routes?.origin?.name ?? '', destination: t.trips?.service_departures?.routes?.destination?.name ?? '',
         date: t.trips ? new Date(`${t.trips.service_date}T12:00:00`).toLocaleDateString('es-AR') : '',
         departure: t.trips ? formatTime(t.trips.scheduled_departure) : ''
       }, printFormat);

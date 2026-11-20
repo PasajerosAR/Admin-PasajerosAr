@@ -9,7 +9,7 @@ export interface PrintableTicket {
   issueDate: string;
   ticket_type?: string;
 }
-export interface TripInfo { company: string; service: string; route: string; date: string; departure: string }
+export interface TripInfo { company: string; service: string; route: string; origin: string; destination: string; date: string; departure: string }
 export type PrintFormat = 'ticket' | 'a4';
 
 const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -27,10 +27,11 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
         <div class="document-label"><b>PASAJE ELECTRÓNICO</b><span>EMITIDO</span></div>
       </header>
       <div class="route-block">
-        <div><span class="label">ORIGEN</span><strong>${esc(t.from)}</strong></div>
+        <div><span class="label">LOCALIDAD DE ORIGEN</span><strong>${esc(info.origin)}</strong></div>
         <span class="route-arrow">→</span>
-        <div><span class="label">DESTINO</span><strong>${esc(t.to)}</strong></div>
+        <div><span class="label">LOCALIDAD DE DESTINO</span><strong>${esc(info.destination)}</strong></div>
       </div>
+      <div class="boarding-block"><div><span class="label">PARADA DE ASCENSO</span><b>${esc(t.from)}</b></div><div><span class="label">PARADA DE DESCENSO</span><b>${esc(t.to)}</b></div></div>
       <div class="trip-grid">
         <div><span class="label">FECHA DEL VIAJE</span><b>${esc(info.date)}</b></div>
         <div><span class="label">HORA DE SALIDA</span><b>${esc(info.departure)}</b></div>
@@ -55,20 +56,29 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
         <div class="validation-copy"><b>VALIDACIÓN AL ABORDAR</b><span>Escaneá este código con el lector de la empresa.</span><div class="amount-label">IMPORTE ABONADO</div><strong class="amount">${money(t.price)}</strong></div>
         <img class="qr" src="${qrs[i]}" alt="Código QR del pasaje">
       </div>
-      <footer class="passenger-info"><b>INFORMACIÓN PARA EL PASAJERO</b><p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p></footer>
+
+      <footer class="passenger-info"><b>INFORMACIÓN PARA EL PASAJERO</b>
+      <p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p><p class="conditions">DATOS OBLIGATORIOS: RESOLUCIÓN 47/2005. PRESENTARSE CON DNI FÍSICO.<br><br>CONDICIONES GENERALES:<br><br>1. DEVOLUCIÓN DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Más de 48 hs: 90%. Únicamente al titular con DNI.<br><br>2. CANJE: No se admiten cambios de fecha/hora, solo devolución bajo condiciones vigentes.<br><br>3. TARJETAS: Boletos con crédito/débito no tienen devolución en efectivo.<br><br>4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95).<br><br>5. EQUIPAJE DE MANO: Sin responsabilidad por pérdida.<br><br>6. VALIDEZ: Solo válido con comprobante de control y en fecha/hora indicada.<br><br>7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonarán pasaje completo. Res. SGT 43/2018.<br><br>8. ACEPTACIÓN: La compra implica aceptación de normas vigentes.<br><br>9. SEGURO: Responsabilidad Civil contratada.<br><br>10. ASIENTO: Sujeto a cambio por unidad.<br><br>11. CONTROL: Presentar al guarda/inspector si se requiere.<br><br>12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).</p></footer>
     </section>` : `
+
+
     <section class="sheet compact">
       <header class="compact-header"><div class="eyebrow">PASAJE ELECTRÓNICO</div><h1>${esc(info.company)}</h1><span>SERVICIO INTERURBANO</span></header>
       <div class="compact-receipt"><span>N.º COMPROBANTE</span><b>${receipt(t.receiptNumber)}</b></div>
-      <div class="compact-route"><strong>${esc(t.from)}</strong><span>→</span><strong>${esc(t.to)}</strong></div>
+      <div class="compact-route"><div><span>ORIGEN (LOCALIDAD)</span><strong>${esc(info.origin)}</strong></div><span>→</span><div><span>DESTINO (LOCALIDAD)</span><strong>${esc(info.destination)}</strong></div></div>
+      <div class="compact-stops"><div><span>ASCENSO</span><b>${esc(t.from)}</b></div><div><span>DESCENSO</span><b>${esc(t.to)}</b></div></div>
       <div class="compact-trip"><b>${esc(info.date)} · ${esc(info.departure)}</b><span>Servicio ${esc(info.service)} · Asiento ${esc(t.seat_label ?? 'Sin asignar')}</span></div>
       <div class="compact-passenger"><span>PASAJERO</span><b>${esc(t.passenger_name)}</b><span>DNI ${esc(t.passenger_dni)}</span>${t.ticket_type ? `<b class="ticket-kind">${esc(t.ticket_type)}</b>` : ''}</div>
       <div class="compact-sale"><span>${esc(t.salesChannel)}</span><span>${esc(t.paymentMethod)}</span></div>
       <div class="compact-issued">Emitido: ${esc(t.issueDate)}</div>
       <img class="qr" src="${qrs[i]}" alt="Código QR del pasaje">
       <div class="compact-amount"><span>IMPORTE</span><b>${money(t.price)}</b></div>
-      <footer>Presentá este QR al conductor para abordar.</footer>
+
+
+      <footer class="passenger-info-compact"><b>INFORMACIÓN PARA EL PASAJERO</b><p>Presentate con anticipación al horario indicado. Llevá DNI para acreditar tu identidad. El pasaje debe presentarse en formato digital o impreso al abordar.</p><p class="conditions">DATOS OBLIGATORIOS: RESOLUCIÓN 47/2005. PRESENTARSE CON DNI FÍSICO.<br><br>CONDICIONES GENERALES:<br><br>1. DEVOLUCIÓN DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Más de 48 hs: 90%. Únicamente al titular con DNI.<br><br>2. CANJE: No se admiten cambios de fecha/hora, solo devolución bajo condiciones vigentes.<br><br>3. TARJETAS: Boletos con crédito/débito no tienen devolución en efectivo.<br><br>4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95).<br><br>5. EQUIPAJE DE MANO: Sin responsabilidad por pérdida.<br><br>6. VALIDEZ: Solo válido con comprobante de control y en fecha/hora indicada.<br><br>7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonarán pasaje completo. Res. SGT 43/2018.<br><br>8. ACEPTACIÓN: La compra implica aceptación de normas vigentes.<br><br>9. SEGURO: Responsabilidad Civil contratada.<br><br>10. ASIENTO: Sujeto a cambio por unidad.<br><br>11. CONTROL: Presentar al guarda/inspector si se requiere.<br><br>12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).</p></footer>
     </section>`).join('');
+
+
   const pageStyle = a4
     ? '@page { size: A4; margin: 12mm } body { font-size: 12px } .sheet { width: 100%; max-width: 186mm; min-height: 260mm; margin: 0 auto }'
     : '@page { size: 80mm auto; margin: 3mm } body { width: 74mm; font-size: 11px } .sheet { width: 74mm }';
@@ -88,6 +98,8 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .route-block { display: grid; grid-template-columns: 1fr 28px 1fr; align-items: center; gap: 12px; padding: 20px; background: var(--brand-soft); border-bottom: 1px solid var(--line) }
     .route-block strong { display: block; font-size: 22px; overflow-wrap: anywhere }
     .route-arrow { text-align: center; font-size: 22px; color: var(--brand) }
+    .boarding-block { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: #fbfdff }
+    .boarding-block b { display: block; font-size: 12px }
     .trip-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); margin: 16px 0; background: #f7fafc }
     .trip-grid > div, .purchase-grid > div { padding: 10px 12px; border-right: 1px solid var(--line) }
     .trip-grid > div:last-child, .purchase-grid > div:last-child { border-right: 0 }
@@ -112,6 +124,10 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .passenger-info { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 9px }
     .passenger-info > b { color: var(--brand); letter-spacing: .06em }
     .passenger-info p { margin: 6px 0 0 }
+    .passenger-info-compact { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 7px; line-height: 1.25 }
+    .passenger-info-compact > b { color: var(--brand); letter-spacing: .04em }
+    .passenger-info-compact p { margin: 4px 0 0 }
+    .passenger-info .conditions, .passenger-info-compact .conditions { font-size: inherit; color: var(--ink) }
     .compact { text-align: center; color: #182d3e }
     .compact-header { padding: 10px 4px 9px; border-bottom: 2px solid var(--brand) }
     .compact-header h1 { font-size: 16px; color: var(--brand); margin: 2px 0 }
@@ -120,11 +136,17 @@ export async function ticketsHtml(tickets: PrintableTicket[], info: TripInfo, fo
     .compact-receipt span, .compact-sale { font-size: 9px; letter-spacing: .04em }
     .compact-receipt b { font-size: 15px }
     .compact-route { display: grid; grid-template-columns: 1fr 20px 1fr; gap: 4px; align-items: center; padding: 8px 0; font-size: 15px }
-    .compact-route strong { overflow-wrap: anywhere }
-    .compact-route span { color: var(--brand); font-size: 18px }
-    .compact-trip { padding: 7px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 4px; font-size: 10px }
+    .compact-route > div { display: grid; gap: 2px }
+    .compact-route > div:last-child { text-align: right }
+    .compact-route > div > span, .compact-stops span { color: var(--muted); font-size: 8px; letter-spacing: .04em }
+    .compact-route strong, .compact-stops b { overflow-wrap: anywhere }
+    .compact-route > span { color: var(--brand); font-size: 18px }
+    .compact-stops { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left }
+    .compact-stops > div { display: grid; gap: 3px }
+    .compact-trip { padding: 7px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); display: grid; gap: 4px; font-size: 14px }
     .compact-passenger { display: grid; gap: 3px; padding: 8px 2px; text-align: left }
-    .compact-passenger span { color: var(--muted); font-size: 9px }
+    .compact-passenger span { color: var(--muted); font-size: 12px }
+    .compact-passenger b { font-size: 15px }
     .compact-sale { display: flex; justify-content: space-between; gap: 4px; padding: 6px 0; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line) }
     .compact-issued { padding-top: 5px; color: var(--muted); text-align: left; font-size: 9px }
     .compact .qr { width: 38mm; height: 38mm; margin: 9px auto }

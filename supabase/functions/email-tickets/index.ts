@@ -41,7 +41,8 @@ const paymentLabel = (method: string) => ({
 
 async function ticketPdf(ticket: TicketRow, details: {
   company: string; service: string; route: string; date: string; departure: string;
-  from: string; to: string; receiptNumber: number; channel: string; paymentMethod: string; issueDate: string;
+  origin: string; destination: string; from: string; to: string;
+  receiptNumber: number; channel: string; paymentMethod: string; issueDate: string;
 }) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
@@ -62,6 +63,20 @@ async function ticketPdf(ticket: TicketRow, details: {
     while (fittedSize > 7 && face.widthOfTextAtSize(value, fittedSize) > maxWidth) fittedSize -= 1;
     page.drawText(value, { x, y, size: fittedSize, font: face, color });
   };
+  const drawWrapped = (text: string, x: number, y: number, maxWidth: number, size: number, lineHeight: number, color = ink) => {
+    const words = printable(text).split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      const next = current ? `${current} ${word}` : word;
+      if (current && font.widthOfTextAtSize(next, size) > maxWidth) {
+        lines.push(current);
+        current = word;
+      } else current = next;
+    }
+    if (current) lines.push(current);
+    page.drawText(lines.join('\n'), { x, y, size, font, color, lineHeight });
+  };
 
   page.drawRectangle({ x: 0, y: 760, width: 595, height: 82, color: brand });
   drawFit(details.company, 38, 805, 360, 18, true, rgb(1, 1, 1));
@@ -69,63 +84,70 @@ async function ticketPdf(ticket: TicketRow, details: {
   draw('PASAJE ELECTRONICO', 424, 806, 10, true, rgb(1, 1, 1));
   draw('EMITIDO', 490, 786, 9, false, rgb(0.84, 0.92, 0.97));
 
-  page.drawRectangle({ x: 38, y: 670, width: 519, height: 68, color: brandSoft });
-  draw('ORIGEN', 54, 720, 8, true, muted);
-  drawFit(details.from, 54, 691, 200, 19, true, brand);
+  page.drawRectangle({ x: 38, y: 642, width: 519, height: 96, color: brandSoft });
+  draw('ORIGEN (LOCALIDAD)', 54, 720, 8, true, muted);
+  drawFit(details.origin, 54, 691, 200, 19, true, brand);
   draw('HACIA', 276, 699, 8, true, brand);
-  draw('DESTINO', 342, 720, 8, true, muted);
-  drawFit(details.to, 342, 691, 200, 19, true, brand);
+  draw('DESTINO (LOCALIDAD)', 342, 720, 8, true, muted);
+  drawFit(details.destination, 342, 691, 200, 19, true, brand);
+  draw('PARADA DE ASCENSO', 54, 675, 7, true, muted);
+  drawFit(details.from, 54, 653, 200, 11, true, ink);
+  draw('PARADA DE DESCENSO', 342, 675, 7, true, muted);
+  drawFit(details.to, 342, 653, 200, 11, true, ink);
 
   const cols = [38, 168, 298, 428];
   const labels = ['FECHA DEL VIAJE', 'HORA DE SALIDA', 'SERVICIO', 'ASIENTO'];
   const values = [details.date, details.departure, details.service, ticket.seat_label ?? 'Sin asignar'];
-  page.drawRectangle({ x: 38, y: 615, width: 519, height: 42, color: rgb(0.97, 0.98, 0.99), borderColor: line, borderWidth: 0.7 });
+  page.drawRectangle({ x: 38, y: 604, width: 519, height: 42, color: rgb(0.97, 0.98, 0.99), borderColor: line, borderWidth: 0.7 });
   for (let i = 0; i < 4; i++) {
-    draw(labels[i], cols[i] + 8, 641, 7, false, muted);
-    draw(values[i], cols[i] + 8, 624, 10, true);
-    if (i > 0) page.drawLine({ start: { x: cols[i], y: 615 }, end: { x: cols[i], y: 657 }, thickness: 0.7, color: line });
+    draw(labels[i], cols[i] + 8, 630, 7, false, muted);
+    draw(values[i], cols[i] + 8, 613, 10, true);
+    if (i > 0) page.drawLine({ start: { x: cols[i], y: 604 }, end: { x: cols[i], y: 646 }, thickness: 0.7, color: line });
   }
 
-  draw('DATOS DEL PASAJERO', 38, 588, 9, true, brand);
-  draw('NOMBRE Y APELLIDO', 38, 568, 7, false, muted);
-  drawFit(ticket.passenger_name, 38, 550, 260, 11, true);
-  draw('DOCUMENTO', 330, 568, 7, false, muted);
-  draw(`DNI ${ticket.passenger_dni}`, 330, 550, 11, true);
+  draw('DATOS DEL PASAJERO', 38, 576, 9, true, brand);
+  draw('NOMBRE Y APELLIDO', 38, 556, 7, false, muted);
+  drawFit(ticket.passenger_name, 38, 538, 260, 11, true);
+  draw('DOCUMENTO', 330, 556, 7, false, muted);
+  draw(`DNI ${ticket.passenger_dni}`, 330, 538, 11, true);
   if (ticket.ticket_type !== 'regular') {
     const kind = ticket.ticket_type === 'courtesy' ? 'GENTILEZA' : 'DISCAPACIDAD';
-    page.drawRectangle({ x: 38, y: 522, width: 106, height: 18, color: brandSoft });
-    draw(kind, 46, 528, 8, true, brand);
+    page.drawRectangle({ x: 38, y: 510, width: 106, height: 18, color: brandSoft });
+    draw(kind, 46, 516, 8, true, brand);
   }
-  page.drawLine({ start: { x: 38, y: 510 }, end: { x: 557, y: 510 }, thickness: 0.7, color: line });
+  page.drawLine({ start: { x: 38, y: 498 }, end: { x: 557, y: 498 }, thickness: 0.7, color: line });
 
-  draw('DATOS DE LA COMPRA', 38, 490, 9, true, brand);
-  page.drawRectangle({ x: 38, y: 414, width: 519, height: 62, color: rgb(0.97, 0.98, 0.99), borderColor: line, borderWidth: 0.7 });
-  draw('NRO. DE COMPROBANTE', 50, 458, 7, false, muted);
-  draw(receiptLabel(details.receiptNumber), 50, 436, 14, true, brand);
-  draw('PUNTO DE VENTA', 218, 458, 7, false, muted);
-  drawFit(details.channel, 218, 436, 155, 9, true);
-  draw('MEDIO DE PAGO', 390, 458, 7, false, muted);
-  drawFit(details.paymentMethod, 390, 436, 155, 9, true);
-  draw('FECHA DE EMISION', 50, 423, 7, false, muted);
-  draw(details.issueDate, 125, 423, 8, false);
-  draw('RECORRIDO', 330, 423, 7, false, muted);
-  drawFit(details.route, 390, 423, 155, 8, false);
+  draw('DATOS DE LA COMPRA', 38, 478, 9, true, brand);
+  page.drawRectangle({ x: 38, y: 402, width: 519, height: 62, color: rgb(0.97, 0.98, 0.99), borderColor: line, borderWidth: 0.7 });
+  draw('NRO. DE COMPROBANTE', 50, 446, 7, false, muted);
+  draw(receiptLabel(details.receiptNumber), 50, 424, 14, true, brand);
+  draw('PUNTO DE VENTA', 218, 446, 7, false, muted);
+  drawFit(details.channel, 218, 424, 155, 9, true);
+  draw('MEDIO DE PAGO', 390, 446, 7, false, muted);
+  drawFit(details.paymentMethod, 390, 424, 155, 9, true);
+  draw('FECHA DE EMISION', 50, 411, 7, false, muted);
+  draw(details.issueDate, 125, 411, 8, false);
+  draw('RECORRIDO', 330, 411, 7, false, muted);
+  drawFit(details.route, 390, 411, 155, 8, false);
 
-  page.drawRectangle({ x: 38, y: 218, width: 519, height: 176, color: rgb(0.985, 0.993, 1), borderColor: line, borderWidth: 0.7 });
-  draw('VALIDACION AL ABORDAR', 54, 365, 11, true, brand);
-  draw('Escanea este codigo con el lector de la empresa.', 54, 346, 8, false, muted);
-  draw('IMPORTE ABONADO', 54, 302, 8, true, muted);
-  draw(`$ ${Number(ticket.price).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 54, 272, 22, true, brand);
-  if (ticket.ticket_type !== 'regular') draw('PASAJE SIN CARGO', 54, 250, 9, true, brand);
+  page.drawRectangle({ x: 38, y: 206, width: 519, height: 176, color: rgb(0.985, 0.993, 1), borderColor: line, borderWidth: 0.7 });
+  draw('VALIDACION AL ABORDAR', 54, 353, 11, true, brand);
+  draw('Escanea este codigo con el lector de la empresa.', 54, 334, 8, false, muted);
+  draw('IMPORTE ABONADO', 54, 290, 8, true, muted);
+  draw(`$ ${Number(ticket.price).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 54, 260, 22, true, brand);
+  if (ticket.ticket_type !== 'regular') draw('PASAJE SIN CARGO', 54, 238, 9, true, brand);
 
   const qr = await QRCode.toBuffer(ticket.qr_code, { type: 'png', errorCorrectionLevel: 'M', margin: 1, width: 220 });
   const image = await pdf.embedPng(qr);
-  page.drawImage(image, { x: 391, y: 232, width: 145, height: 145 });
-  draw('INFORMACION PARA EL PASAJERO', 38, 189, 8, true, brand);
-  draw('Presentate con anticipacion al horario indicado y lleva DNI para acreditar tu identidad.', 38, 171, 8, false, muted);
-  draw('El pasaje puede presentarse impreso o en formato digital al abordar.', 38, 157, 8, false, muted);
-  page.drawLine({ start: { x: 38, y: 140 }, end: { x: 557, y: 140 }, thickness: 0.7, color: line });
-  drawFit(`Canal: ${details.channel}  |  Comprobante ${receiptLabel(details.receiptNumber)}`, 38, 124, 515, 8, false, muted);
+  page.drawImage(image, { x: 391, y: 220, width: 145, height: 145 });
+  draw('INFORMACION PARA EL PASAJERO', 38, 178, 8, true, brand);
+  draw('Presentate con anticipacion al horario indicado y lleva DNI para acreditar tu identidad.', 38, 162, 7, false, muted);
+  draw('El pasaje puede presentarse en formato digital o impreso al abordar.', 38, 150, 7, false, muted);
+  draw('DATOS OBLIGATORIOS: RESOLUCION 47/2005. PRESENTARSE CON DNI FISICO.', 38, 136, 6, true, brand);
+  draw('CONDICIONES GENERALES', 38, 126, 7, true, brand);
+  drawWrapped('1. DEVOLUCION DE PASAJES: (Res. 1317/53). Dentro de las 24 hs previas: 70%. Entre 48 hs y 24 hs: 80%. Mas de 48 hs: 90%. Unicamente al titular con DNI. 2. CANJE: No se admiten cambios de fecha/hora, solo devolucion bajo condiciones vigentes. 3. TARJETAS: Boletos con credito/debito no tienen devolucion en efectivo. 4. EQUIPAJE: Hasta 15 kg sin cargo (Res. 47/95). 5. EQUIPAJE DE MANO: Sin responsabilidad por perdida. 6. VALIDEZ: Solo valido con comprobante de control y en fecha/hora indicada. 7. MENORES: Menores de 5 años no pagan (sin asiento). Mayores de 5 abonaran pasaje completo. Res. SGT 43/2018. 8. ACEPTACION: La compra implica aceptacion de normas vigentes. 9. SEGURO: Responsabilidad Civil contratada. 10. ASIENTO: Sujeto a cambio por unidad. 11. CONTROL: Presentar al guarda/inspector si se requiere. 12. DNI: Obligatorio en servicios nacionales (Res. 76-E/2016).', 38, 115, 519, 6, 7.4, muted);
+  page.drawLine({ start: { x: 38, y: 48 }, end: { x: 557, y: 48 }, thickness: 0.7, color: line });
+  drawFit(`Canal: ${details.channel}  |  Comprobante ${receiptLabel(details.receiptNumber)}`, 38, 34, 515, 7, false, muted);
   return await pdf.save();
 }
 
@@ -180,7 +202,7 @@ Deno.serve(async (req) => {
     const service = tripResult.data.service as { code: string } | null;
     const [companyResult, routeResult, stopsResult] = await Promise.all([
       admin.from('companies').select('name').eq('id', mine.data.company_id).single(),
-      routeId ? admin.from('routes').select('name').eq('id', routeId).single() : Promise.resolve({ data: null, error: new Error('Route missing') }),
+      routeId ? admin.from('routes').select('name, origin:places!routes_origin_place_id_fkey(name), destination:places!routes_destination_place_id_fkey(name)').eq('id', routeId).single() : Promise.resolve({ data: null, error: new Error('Route missing') }),
       admin.from('route_stops').select('id, name').in('id', tickets.flatMap((ticket) => [ticket.from_stop_id, ticket.to_stop_id]))
     ]);
     if (companyResult.error || routeResult.error || stopsResult.error || !service) {
@@ -196,6 +218,8 @@ Deno.serve(async (req) => {
           company: companyResult.data.name,
           service: service.code,
           route: routeResult.data.name,
+          origin: routeResult.data.origin?.name ?? '',
+          destination: routeResult.data.destination?.name ?? '',
           date: new Date(`${tripResult.data.service_date}T12:00:00`).toLocaleDateString('es-AR'),
           departure: scheduled.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' }),
           from: stopNames.get(ticket.from_stop_id) ?? 'No disponible',

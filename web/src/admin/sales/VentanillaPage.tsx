@@ -21,7 +21,7 @@ const CELL_LABEL: Record<string, string> = { door: 'Puerta', stairs: 'Escalera',
 
 interface TripOption {
   id: string; scheduled_departure: string; status: string; layout_id: string | null;
-  services: { code: string } | null; service_departures: { route_id: string; routes: { name: string } | null } | null;
+  services: { code: string } | null; service_departures: { route_id: string; routes: { name: string; origin: { name: string } | null; destination: { name: string } | null } | null } | null;
 }
 interface Pax { dni: string; name: string; email: string; ticketKind?: TicketKind; found?: string }
 interface SoldTicket {
@@ -47,7 +47,7 @@ export function VentanillaPage() {
   const [now, setNow] = useState(Date.now());
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,scheduled_departure,status,layout_id,services(code),service_departures(route_id,routes(name))')
+    .select('id,scheduled_departure,status,layout_id,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
     .eq('service_date', date).in('status', ['scheduled', 'in_progress']).order('scheduled_departure')) as unknown as TripOption[], [date]);
   const trip = trips.data?.find((t) => t.id === tripId);
   const routeId = trip?.service_departures?.route_id ?? '';
@@ -146,6 +146,7 @@ export function VentanillaPage() {
   const stopName = (id: string) => stopList.find((s) => s.id === id)?.name ?? '';
   const info = () => ({
     company: company.data?.[0]?.name ?? '', service: trip?.services?.code ?? '', route: trip?.service_departures?.routes?.name ?? '',
+    origin: trip?.service_departures?.routes?.origin?.name ?? '', destination: trip?.service_departures?.routes?.destination?.name ?? '',
     date: new Date(`${date}T12:00:00`).toLocaleDateString('es-AR'), departure: trip ? formatTime(trip.scheduled_departure) : ''
   });
   const printable = (s: Sale): PrintableTicket[] => s.tickets.map((t) => ({
