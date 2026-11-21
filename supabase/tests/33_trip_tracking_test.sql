@@ -17,37 +17,52 @@ alter table public.trips disable trigger user;
 update public.trips set status = 'in_progress', started_at = now(), published_at = now(),
   scheduled_departure = now() - interval '20 minutes' where id = (select trip_id from tk);
 alter table public.trips enable trigger user;
--- la unidad esta justo en Colonia Avellaneda (parada 2, programada a los 20 min): va a tiempo
-insert into public.trip_live_positions (trip_id, company_id, driver_id, latitude, longitude, accuracy_m, recorded_at)
-values ((select trip_id from tk), (select company_id from tk), 'a2000000-0000-0000-0000-000000000001', -31.70, -60.45, 10, now())
-on conflict (trip_id) do update set latitude = excluded.latitude, longitude = excluded.longitude, recorded_at = now();
--- salida a las ahora-20min: ya pasaron los 5 min previos, el publico no lo ve
-select t.expect_eq(public.trip_tracking((select trip_id from tk)) is null, true, 'el publico no ve el seguimiento despues del corte de 5 min');
--- salida futura (30 min): visible para el publico
+-- ---- regla de posicion ANTES de la salida: solo en la parada 1 (200 m) y desde 15 min antes ----
 alter table public.trips disable trigger user;
 update public.trips set scheduled_departure = now() + interval '30 minutes' where id = (select trip_id from tk);
 alter table public.trips enable trigger user;
+-- la unidad esta en Colonia Avellaneda (parada 2), no en el origen
+insert into public.trip_live_positions (trip_id, company_id, driver_id, latitude, longitude, accuracy_m, recorded_at)
+values ((select trip_id from tk), (select company_id from tk), 'a2000000-0000-0000-0000-000000000001', -31.70, -60.45, 10, now())
+on conflict (trip_id) do update set latitude = excluded.latitude, longitude = excluded.longitude, recorded_at = now();
 select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'origin_name', 'Parana', 'origen = primera parada');
 select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'destination_name', 'Santa Fe Terminal', 'destino = ultima parada');
-select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, true, 'hay senal');
--- esta en la parada 2 (que programa a los +20 min) pero la salida es en 30 min: va 20 min adelantado... pero no menos que ahora
 select t.expect_eq(jsonb_array_length((public.trip_tracking((select trip_id from tk)))->'stops'), 3, 'lista las 3 paradas');
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'antes de la salida y fuera de la parada 1: sin posicion');
+-- en la parada 1 pero faltan 30 min (mas de 15): sin posicion
+update public.trip_live_positions set latitude = -31.73, longitude = -60.52, recorded_at = now() where trip_id = (select trip_id from tk);
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'en la parada 1 pero faltan mas de 15 min: sin posicion');
+-- en la parada 1 y faltan 10 min: se muestra
+alter table public.trips disable trigger user;
+update public.trips set scheduled_departure = now() + interval '10 minutes' where id = (select trip_id from tk);
+alter table public.trips enable trigger user;
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, true, 'en la parada 1 y faltan 10 min: se muestra');
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->0->>'passed')::boolean, false, 'en el origen todavia no paso la primera parada');
+-- a 300 m de la parada 1 (faltan 10 min): sin posicion
+update public.trip_live_positions set latitude = -31.7327, recorded_at = now() where trip_id = (select trip_id from tk);
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'a mas de 200 m de la parada 1: sin posicion');
+-- sin senal reciente
+update public.trip_live_positions set latitude = -31.73, recorded_at = now() - interval '5 minutes' where trip_id = (select trip_id from tk);
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'posicion vieja = sin senal');
+-- ---- DESPUES de la salida: seguimiento normal (lo ve quien tiene pasaje) ----
+update public.sale_tickets set trip_id = (select trip_id from tk), passenger_user_id = 'a2000000-0000-0000-0000-000000000001'
+ where id = (select id from public.sale_tickets where regexp_replace(passenger_dni,'\D','','g') = '28999111' order by created_at desc limit 1);
+alter table public.trips disable trigger user;
+update public.trips set scheduled_departure = now() - interval '6 minutes' where id = (select trip_id from tk);
+alter table public.trips enable trigger user;
+update public.trip_live_positions set latitude = -31.70, longitude = -60.45, recorded_at = now() where trip_id = (select trip_id from tk);
+select t.login('a2000000-0000-0000-0000-000000000001');
+-- el publico ya no lo ve (corte de 5 min) pero si el pasajero con pasaje
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, true, 'pasada la hora de salida: se muestra la posicion');
 select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->0->>'passed')::boolean, true, 'la primera parada ya fue pasada');
 select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->2->>'eta_at') is not null, true, 'la ultima parada tiene hora estimada');
--- atraso: salida programada hace 20 min, la unidad esta en el origen -> ya llegaria tarde? (esperando en el origen no se adelanta)
-update public.trip_live_positions set latitude = -31.73, longitude = -60.52, recorded_at = now() where trip_id = (select trip_id from tk);
-select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->0->>'passed')::boolean, false, 'en el origen todavia no pasó la primera parada');
--- adelanto real: la unidad esta en la parada 2 (programada a los +20 min) y la salida es en 6 min -> 26 min antes de lo programado
-update public.trip_live_positions set latitude = -31.70, longitude = -60.45, recorded_at = now() where trip_id = (select trip_id from tk);
-alter table public.trips disable trigger user;
-update public.trips set scheduled_departure = now() + interval '6 minutes' where id = (select trip_id from tk);
-alter table public.trips enable trigger user;
-select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'delay_minutes')::int, -26, 'llega 26 min antes de lo programado');
--- sin senal reciente
-update public.trip_live_positions set recorded_at = now() - interval '5 minutes' where trip_id = (select trip_id from tk);
-select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'posicion vieja = sin senal');
+-- adelanto real: en la parada 2 (programada a +20) con la salida hace 6 min -> 14 min antes
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'delay_minutes')::int, -14, 'llega 14 min antes de lo programado');
+select t.logout();
 -- empresa sin GPS: sin seguimiento
 update public.companies set blocked_features = array['gps'] where id = (select company_id from tk);
+select t.login('a2000000-0000-0000-0000-000000000001');
 select t.expect_eq(public.trip_tracking((select trip_id from tk)) is null, true, 'empresa con GPS bloqueado: sin seguimiento');
+select t.logout();
 update public.companies set blocked_features = '{}' where id = (select company_id from tk);
 select 'PRUEBAS DE SEGUIMIENTO PASARON';
