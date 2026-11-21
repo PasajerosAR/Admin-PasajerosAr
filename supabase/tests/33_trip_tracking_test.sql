@@ -37,6 +37,7 @@ select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'origin_na
 select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'destination_name', 'Santa Fe Terminal', 'destino = ultima parada');
 select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->0) ? 'place_name', true, 'las paradas traen la localidad');
 select t.expect_eq((public.trip_tracking((select trip_id from tk))) ? 'origin_place', true, 'trae la localidad de origen');
+select t.expect_eq((public.trip_tracking((select trip_id from tk))) ? 'vehicle_label', true, 'trae el numero de interno');
 select t.expect_eq(jsonb_array_length((public.trip_tracking((select trip_id from tk)))->'stops'), 3, 'lista las 3 paradas');
 select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'antes de la salida y fuera de la parada 1: sin posicion');
 -- en la parada 1 pero faltan 30 min (mas de 15): sin posicion

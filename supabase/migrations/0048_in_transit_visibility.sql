@@ -689,7 +689,14 @@ begin
   -- publico: mientras el viaje se ve en la busqueda (programado hasta 5 min antes; en curso hasta el fin del servicio)
   select d.route_id into v_route from public.service_departures d where d.id = v_trip.departure_id;
   v_public := public.company_feature_enabled(v_trip.company_id, 'web')
-              and (case when v_trip.status = 'scheduled' then v_trip.scheduled_departure > now() + interval '5 minutes'
+              and (case when v_trip.status = 'scheduled' then
+                          -- programado: mientras alguna parada (menos la ultima) todavia se venda
+                          v_trip.scheduled_departure + make_interval(mins => coalesce((
+                            select max(ss.minutes_from_start + coalesce(ss.dwell_minutes, 0))
+                              from public.service_stops ss join public.route_stops rs on rs.id = ss.route_stop_id
+                             where ss.service_id = v_trip.service_id and rs.route_id = v_route
+                               and rs.position < (select max(x.position) from public.route_stops x where x.route_id = v_route)), 0))
+                          > now() + interval '5 minutes'
                         else coalesce(public._trip_end_cutoff(v_trip.service_id, v_route, v_trip.scheduled_departure), 'infinity'::timestamptz) > now() end);
   select coalesce(jsonb_agg(jsonb_build_object('from_stop_id', k.from_stop_id, 'to_stop_id', k.to_stop_id)), '[]'::jsonb)
     into v_mine
@@ -775,6 +782,7 @@ begin
     'company_name', v_head.company_name, 'service_code', v_head.service_code, 'route_name', v_head.route_name,
     'route_path', v_head.route_path,
     'status', v_trip.status,
+    'vehicle_label', (select v.internal_number from public.vehicles v where v.id = v_trip.vehicle_id),
     'scheduled_departure', v_trip.scheduled_departure,
     'origin_name', (select name from public.route_stops where route_id = v_route order by position limit 1),
     'destination_name', (select name from public.route_stops where route_id = v_route order by position desc limit 1),
