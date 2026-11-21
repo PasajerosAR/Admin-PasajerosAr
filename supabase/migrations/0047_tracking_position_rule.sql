@@ -39,11 +39,11 @@ begin
 
   select d.route_id into v_route from public.service_departures d where d.id = v_trip.departure_id;
 
-  if v_trip.status = 'in_progress' then
-    select l.latitude, l.longitude, l.accuracy_m, l.heading, l.recorded_at into v_pos
-      from public.trip_live_positions l
-     where l.trip_id = p_trip and l.recorded_at > now() - interval '90 seconds';
-    v_has_pos := found;
+  select l.latitude, l.longitude, l.accuracy_m, l.heading, l.recorded_at into v_pos
+    from public.trip_live_positions l
+   where l.trip_id = p_trip and l.recorded_at > now() - interval '90 seconds';
+  v_has_pos := found and v_trip.status = 'in_progress';
+  if v_has_pos then
     -- antes de la salida programada la posicion solo se muestra si la unidad esta a 200 m o menos
     -- de la parada 1 y faltan 15 minutos o menos; asi un inicio por error no se ve en la web.
     if v_has_pos and now() < v_trip.scheduled_departure then
@@ -89,18 +89,19 @@ begin
   end if;
 
   select coalesce(jsonb_agg(jsonb_build_object(
-           'id', x.id, 'name', x.name, 'position', x.position, 'lat', x.lat, 'lng', x.lng,
+           'id', x.id, 'name', x.name, 'place_name', x.place_name, 'position', x.position, 'lat', x.lat, 'lng', x.lng,
            'scheduled_at', x.sched,
            'passed', x.passed,
            'eta_at', case when x.passed or x.sched is null then null else greatest(x.sched + v_delay, now()) end
          ) order by x.position), '[]'::jsonb)
     into v_stops
     from (
-      select rs.id, rs.name, rs.position, rs.lat, rs.lng,
+      select rs.id, rs.name, pl.name as place_name, rs.position, rs.lat, rs.lng,
              v_trip.scheduled_departure + ss.minutes_from_start * interval '1 minute' as sched,
              (v_k is not null and (rs.position < v_k or (rs.position = v_k and v_t > 0.05))) as passed
         from public.route_stops rs
         left join public.service_stops ss on ss.service_id = v_trip.service_id and ss.route_stop_id = rs.id
+        left join public.places pl on pl.id = rs.place_id
        where rs.route_id = v_route
     ) x;
 
@@ -117,6 +118,8 @@ begin
     'scheduled_departure', v_trip.scheduled_departure,
     'origin_name', (select name from public.route_stops where route_id = v_route order by position limit 1),
     'destination_name', (select name from public.route_stops where route_id = v_route order by position desc limit 1),
+    'origin_place', (select pl.name from public.route_stops rs join public.places pl on pl.id = rs.place_id where rs.route_id = v_route order by rs.position limit 1),
+    'destination_place', (select pl.name from public.route_stops rs join public.places pl on pl.id = rs.place_id where rs.route_id = v_route order by rs.position desc limit 1),
     'signal', v_has_pos,
     'position', case when v_has_pos then jsonb_build_object('latitude', v_pos.latitude, 'longitude', v_pos.longitude,
       'accuracy_m', v_pos.accuracy_m, 'heading', v_pos.heading, 'recorded_at', v_pos.recorded_at) end,

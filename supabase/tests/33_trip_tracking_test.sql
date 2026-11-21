@@ -17,6 +17,14 @@ alter table public.trips disable trigger user;
 update public.trips set status = 'in_progress', started_at = now(), published_at = now(),
   scheduled_departure = now() - interval '20 minutes' where id = (select trip_id from tk);
 alter table public.trips enable trigger user;
+-- viaje programado (todavia no salio): el seguimiento responde sin posicion
+alter table public.trips disable trigger user;
+update public.trips set status = 'scheduled', started_at = null, scheduled_departure = now() + interval '30 minutes' where id = (select trip_id from tk);
+alter table public.trips enable trigger user;
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'viaje programado: seguimiento sin posicion');
+alter table public.trips disable trigger user;
+update public.trips set status = 'in_progress', started_at = now() where id = (select trip_id from tk);
+alter table public.trips enable trigger user;
 -- ---- regla de posicion ANTES de la salida: solo en la parada 1 (200 m) y desde 15 min antes ----
 alter table public.trips disable trigger user;
 update public.trips set scheduled_departure = now() + interval '30 minutes' where id = (select trip_id from tk);
@@ -27,6 +35,8 @@ values ((select trip_id from tk), (select company_id from tk), 'a2000000-0000-00
 on conflict (trip_id) do update set latitude = excluded.latitude, longitude = excluded.longitude, recorded_at = now();
 select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'origin_name', 'Parana', 'origen = primera parada');
 select t.expect_eq((public.trip_tracking((select trip_id from tk)))->>'destination_name', 'Santa Fe Terminal', 'destino = ultima parada');
+select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->'stops'->0) ? 'place_name', true, 'las paradas traen la localidad');
+select t.expect_eq((public.trip_tracking((select trip_id from tk))) ? 'origin_place', true, 'trae la localidad de origen');
 select t.expect_eq(jsonb_array_length((public.trip_tracking((select trip_id from tk)))->'stops'), 3, 'lista las 3 paradas');
 select t.expect_eq(((public.trip_tracking((select trip_id from tk)))->>'signal')::boolean, false, 'antes de la salida y fuera de la parada 1: sin posicion');
 -- en la parada 1 pero faltan 30 min (mas de 15): sin posicion

@@ -7,7 +7,7 @@ select t.id, t.service_id, d.route_id from public.trips t
  where t.company_id = 'aaaaaaaa-0000-0000-0000-000000000001' and t.layout_id is not null and t.published_at is not null
    and public.day_type_of((now() at time zone 'America/Argentina/Buenos_Aires')::date) = any (d.day_types)
    and exists (select 1 from public.ticket_prices p where p.company_id = t.company_id and p.active)
- order by t.created_at desc limit 1;
+ order by (t.service_date = (now() at time zone 'America/Argentina/Buenos_Aires')::date) desc, t.created_at desc limit 1;
 grant all on sv5 to authenticated;
 -- tiempos del servicio: origen 0, ultima parada a los 100 min -> se oculta a los 115 min de la salida programada
 insert into public.service_stops (service_id, route_stop_id, company_id, minutes_from_start)
@@ -19,6 +19,10 @@ select (select service_id from sv5), rs.id, 'aaaaaaaa-0000-0000-0000-00000000000
                        (select max(position) from public.route_stops where route_id = (select route_id from sv5)))
 on conflict (service_id, route_stop_id) do update set minutes_from_start = excluded.minutes_from_start;
 alter table public.trips disable trigger user;
+-- libera la fecha de hoy si otro viaje del mismo horario ya la ocupa
+update public.trips set service_date = service_date + 2000
+ where departure_id = (select departure_id from public.trips where id = (select id from sv5)) and id <> (select id from sv5)
+   and service_date = (now() at time zone 'America/Argentina/Buenos_Aires')::date;
 update public.trips set status = 'in_progress', started_at = now(), driver_id = null,
   service_date = (now() at time zone 'America/Argentina/Buenos_Aires')::date,
   scheduled_departure = now() + interval '10 minutes'
