@@ -28,6 +28,7 @@ export function RoutesPage() {
   const [companyId, setCompanyId] = useState('');
   const [stops, setStops] = useState<StopForm[]>(blankStops());
   const [sel, setSel] = useState<number | null>(0);
+  const [inUse, setInUse] = useState(false); // el recorrido ya tiene servicios: el orden de paradas no se puede cambiar
   const [via, setVia] = useState<Via[]>([]);
   const [path, setPath] = useState<LatLng[] | null>(null);
   const [maneuvers, setManeuvers] = useState<Maneuver[] | null>(null);
@@ -49,11 +50,13 @@ export function RoutesPage() {
     setMsg(null);
     setMode('stop');
     if (!r) {
-      setEditing('nuevo'); setName(''); setCompanyId(''); setStops(blankStops()); setSel(0);
+      setEditing('nuevo'); setName(''); setCompanyId(''); setStops(blankStops()); setSel(0); setInUse(false);
       setVia([]); setPath(null); setManeuvers(null); setTrace('idle'); tracedKey.current = ''; return;
     }
     const loaded = stopsOf(r.id).map((s) => ({ name: s.name, lat: s.lat?.toString() ?? '', lng: s.lng?.toString() ?? '', place_id: s.place_id ?? '' }));
-    setEditing(r.id); setName(r.name); setCompanyId(r.company_id ?? ''); setSel(0);
+    setEditing(r.id); setName(r.name); setCompanyId(r.company_id ?? ''); setSel(0); setInUse(true);
+    void supabase.from('service_departures').select('id', { count: 'exact', head: true }).eq('route_id', r.id)
+      .then(({ count }) => setInUse((count ?? 0) > 0));
     setStops(loaded); setVia(r.via ?? []); setPath(r.path); setManeuvers(r.maneuvers);
     setTrace(r.path && r.maneuvers ? 'ok' : 'idle');
     tracedKey.current = r.path && r.maneuvers ? JSON.stringify(buildWaypoints(loaded, r.via ?? [])) : '';
@@ -111,6 +114,13 @@ export function RoutesPage() {
   const [q, setQ] = useState('');
   const moveVia = (i: number, lat: number, lng: number) => setVia(sortVia(stops, via.map((v, j) => (j === i ? { ...v, lat, lng } : v))));
   const removeVia = (i: number) => setVia(via.filter((_, j) => j !== i));
+  // Subir/bajar una parada (los puntos de paso se guardan por tramo, por eso se descartan al reordenar).
+  const moveStop = (i: number, to: number) => {
+    if (inUse || to < 0 || to >= stops.length) return;
+    const next = [...stops];
+    [next[i], next[to]] = [next[to], next[i]];
+    setStops(next); setVia([]); setSel(to);
+  };
   const patch = (i: number, p: Partial<StopForm>) => setStops(stops.map((s, j) => (j === i ? { ...s, ...p } : s)));
 
   return (
@@ -132,6 +142,7 @@ export function RoutesPage() {
             </select>
           </label>
           <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Paraná - Santa Fe" /></label>
+          {inUse && editing !== 'nuevo' && <p className="muted">Este recorrido ya tiene servicios: no se puede cambiar el orden ni la cantidad de paradas, solo corregir nombres, localidades y coordenadas.</p>}
           <div className="table-wrap">
             <table>
               <thead><tr><th>#</th><th>Parada</th><th>Localidad</th><th>Latitud</th><th>Longitud</th><th /></tr></thead>
@@ -151,7 +162,11 @@ export function RoutesPage() {
                     </td>
                     <td><input aria-label="Latitud" inputMode="decimal" value={s.lat} onChange={(e) => patch(i, { lat: e.target.value })} placeholder="-31.7333" /></td>
                     <td><input aria-label="Longitud" inputMode="decimal" value={s.lng} onChange={(e) => patch(i, { lng: e.target.value })} placeholder="-60.5236" /></td>
-                    <td><button type="button" className="danger" disabled={stops.length <= 2} onClick={() => { setStops(stops.filter((_, j) => j !== i)); setVia([]); setSel(null); }}>Quitar</button></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button type="button" className="secondary" aria-label={`Subir la parada ${i + 1}`} title="Subir" disabled={inUse || i === 0} onClick={(e) => { e.stopPropagation(); moveStop(i, i - 1); }}>↑</button>{' '}
+                      <button type="button" className="secondary" aria-label={`Bajar la parada ${i + 1}`} title="Bajar" disabled={inUse || i === stops.length - 1} onClick={(e) => { e.stopPropagation(); moveStop(i, i + 1); }}>↓</button>{' '}
+                      <button type="button" className="danger" disabled={stops.length <= 2} onClick={() => { setStops(stops.filter((_, j) => j !== i)); setVia([]); setSel(null); }}>Quitar</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -159,6 +174,7 @@ export function RoutesPage() {
           </div>
           <div className="row" style={{ alignItems: 'center' }}>
             <button type="button" className={mode === 'stop' ? '' : 'secondary'} aria-pressed={mode === 'stop'} onClick={() => setMode('stop')}>Ubicar paradas</button>
+            <button type="button" className="secondary" onClick={() => { setStops([...stops, blankStop()]); setSel(stops.length); setMode('stop'); }}>Agregar parada</button>
             <button type="button" className={mode === 'via' ? '' : 'secondary'} aria-pressed={mode === 'via'} onClick={() => setMode('via')}>Agregar puntos de paso</button>
             {via.length > 0 && <button type="button" className="secondary" onClick={() => setVia([])}>{via.length === 1 ? "Quitar el punto de paso" : `Quitar los ${via.length} puntos de paso`}</button>}
             <span className="muted" style={{ flex: '1 1 200px' }} role="status">
@@ -170,7 +186,6 @@ export function RoutesPage() {
           <StopMap stops={stops} selected={sel} onPick={(i, lat, lng) => patch(i, { lat: String(lat), lng: String(lng) })}
             path={path} via={via} mode={mode} onAddVia={addVia} onMoveVia={moveVia} onRemoveVia={removeVia} />
           <div className="row">
-            <button className="secondary" onClick={() => { setStops([...stops, blankStop()]); setSel(stops.length); }}>Agregar parada</button>
             <button onClick={save}>Guardar recorrido</button>
             <button className="secondary" onClick={() => setEditing(null)}>Cancelar</button>
           </div>
