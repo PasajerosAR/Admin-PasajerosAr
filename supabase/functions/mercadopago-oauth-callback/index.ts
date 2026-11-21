@@ -6,7 +6,8 @@ Deno.serve(async (req) => {
   if (req.method !== 'GET') return json({ error: 'Método no permitido.' }, 405);
   const adminUrl = Deno.env.get('ADMIN_WEB_URL');
   if (!adminUrl) return json({ error: 'ADMIN_WEB_URL_MISSING' }, 500);
-  const returnTo = new URL('/admin/ventas/mercadopago', adminUrl);
+  // ruta relativa: ADMIN_WEB_URL incluye la carpeta del sitio (/Admin-PasajerosAr/), que una ruta absoluta pisaria
+  const returnTo = new URL('admin/ventas/mercadopago', adminUrl.endsWith('/') ? adminUrl : `${adminUrl}/`);
 
   try {
     testMode();

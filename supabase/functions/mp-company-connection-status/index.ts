@@ -4,14 +4,18 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'GET' && req.method !== 'POST') return json({ error: 'Método no permitido.' }, 405);
   try {
-    const { admin } = await companyAdmin(req);
-    const { data, error } = await admin.rpc('mp_company_connection_status');
+    // El cliente admin no tiene sesion de usuario: se consulta la conexion de la empresa del administrador directamente.
+    const { admin, profile } = await companyAdmin(req);
+    const { data: row, error } = await admin.from('mp_company_connections')
+      .select('mp_user_id,connected_at')
+      .eq('company_id', profile.company_id)
+      .eq('active', true)
+      .maybeSingle();
     if (error) return json({ error: 'No se pudo consultar la conexión.' }, 500);
-    const row = Array.isArray(data) ? data[0] : null;
     return json({
-      connected: Boolean(row?.connected),
-      mp_user_id: row?.connected ? row.mp_user_id : null,
-      connected_at: row?.connected ? row.connected_at : null,
+      connected: Boolean(row),
+      mp_user_id: row?.mp_user_id ?? null,
+      connected_at: row?.connected_at ?? null,
       test_mode: true
     });
   } catch (error) {
