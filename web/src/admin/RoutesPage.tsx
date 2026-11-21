@@ -125,7 +125,7 @@ export function RoutesPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: 'center' }}>
+      <div className="row page-heading" style={{ alignItems: 'center' }}>
         <h1>Recorridos</h1>
         {canEdit && <button onClick={() => open(null)}>Nuevo recorrido</button>}
       </div>

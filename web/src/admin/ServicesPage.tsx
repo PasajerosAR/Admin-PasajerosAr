@@ -137,10 +137,11 @@ export function ServicesPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: 'center' }}>
+      <div className="row page-heading" style={{ alignItems: 'center' }}>
         <h1>Servicios</h1>
         {canEdit && <button onClick={openNew}>Nuevo servicio</button>}
       </div>
+      
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && editing && (
         <form className="card stack" onSubmit={save} aria-label="Servicio">

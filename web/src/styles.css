@@ -395,3 +395,8 @@ td select, td input { min-height: 32px; }
   .card > label, .stack > label { max-width: none; }
   .search-select { min-width: 0; }
 }
+
+/* Encabezados con acción: mantener el botón junto al título también en móvil. */
+.page-heading { flex-wrap: nowrap; width: fit-content; max-width: 100%; }
+.page-heading > h1 { flex: 0 0 auto; }
+.page-heading > button { flex: 0 0 auto; }
