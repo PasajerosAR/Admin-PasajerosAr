@@ -34,10 +34,17 @@ export function DriversPage() {
   };
 
   const remove = async (d: Profile) => {
-    if (!window.confirm(`¿Eliminar a ${d.full_name}? Si ya tiene viajes, ventas o jornadas, deja de aparecer y no puede ingresar, pero su historial se conserva. Si nunca tuvo actividad, se borra del todo.`)) return;
+    const { data: pending } = await supabase.from('trips').select('id,status').eq('driver_id', d.id).in('status', ['scheduled', 'in_progress']);
+    const live = (pending ?? []).filter((t) => t.status === 'in_progress').length;
+    const next = (pending ?? []).length - live;
+    const aviso = live + next > 0
+      ? `\n\nAtención: tiene ${live ? `${live} viaje en curso` : ''}${live && next ? ' y ' : ''}${next ? `${next} programado${next > 1 ? 's' : ''}` : ''}. Quedarán sin conductor y tendrás que cubrirlos.`
+      : '';
+    if (!window.confirm(`¿Eliminar a ${d.full_name}? Deja de aparecer y no puede ingresar. Su historial se conserva.${aviso}`)) return;
     const { data, error } = await supabase.rpc('remove_driver', { p_driver: d.id });
     if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
-    setMsg({ kind: 'ok', text: (data as { kept_history?: boolean } | null)?.kept_history ? `${d.full_name} eliminado. Su historial se conserva.` : `${d.full_name} eliminado.` });
+    const sinChofer = (data as { trips_without_driver?: number } | null)?.trips_without_driver ?? 0;
+    setMsg({ kind: 'ok', text: `${d.full_name} eliminado.${sinChofer ? ` ${sinChofer} viaje${sinChofer > 1 ? 's' : ''} quedó sin conductor: asignalo en Viajes.` : ''}` });
     drivers.reload();
   };
 

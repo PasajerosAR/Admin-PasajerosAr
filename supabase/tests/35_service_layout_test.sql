@@ -80,15 +80,13 @@ insert into public.profiles (id, company_id, role, full_name) values ('a2000000-
 select t.login('a1000000-0000-0000-0000-000000000001');
 select t.expect_eq((public.remove_driver('a2000000-0000-0000-0000-0000000000c9'))->>'kept_history', 'false', 'sin actividad: se borra');
 select t.expect_eq((select count(*) from public.profiles where id = 'a2000000-0000-0000-0000-0000000000c9'), 0::bigint, 'ya no existe');
-select t.expect_fail($q$select public.remove_driver('a2000000-0000-0000-0000-000000000001')$q$, 'DRIVER_IN_PROGRESS');
-select t.expect_fail($q$select public.remove_driver('a2000000-0000-0000-0000-0000000000d1')$q$, 'DRIVER_SHIFT_OPEN');
-select t.logout();
-select t.login('a2000000-0000-0000-0000-0000000000d1');
-select public.end_shift();
-select t.logout();
-select t.login('a1000000-0000-0000-0000-000000000001');
+-- 0051: con viaje en curso o jornada abierta también se elimina
+select t.expect_eq((public.remove_driver('a2000000-0000-0000-0000-000000000001'))->>'deleted', 'true', 'con viaje en curso: se elimina');
+select t.expect_eq((select count(*) from public.trips where driver_id = 'a2000000-0000-0000-0000-000000000001' and status in ('scheduled','in_progress')), 0::bigint, 'sus viajes pendientes y en curso quedan sin conductor');
+select t.expect_eq((select count(*) >= 1 from public.trips where status = 'in_progress' and driver_id is null), true, 'el viaje en curso sigue en curso, sin conductor');
 select t.expect_eq((public.remove_driver('a2000000-0000-0000-0000-0000000000d1'))->>'kept_history', 'true', 'con historial: se oculta');
 select t.expect_eq((select deleted_at is not null and not active from public.profiles where id = 'a2000000-0000-0000-0000-0000000000d1'), true, 'queda oculto e inactivo');
+select t.expect_eq((select count(*) from public.shifts where driver_id = 'a2000000-0000-0000-0000-0000000000d1' and ended_at is null), 0::bigint, 'su jornada abierta se cerró');
 select t.logout();
 select t.expect_eq((select email from auth.users where id = 'a2000000-0000-0000-0000-0000000000d1') like 'eliminado-%', true, 'se libera el correo');
 select t.login('b1000000-0000-0000-0000-000000000001');
