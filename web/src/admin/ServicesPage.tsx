@@ -4,7 +4,7 @@ import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
 import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
-import type { Route, RouteStop, Service, ServiceDeparture, ServiceStop } from '../lib/types';
+import type { Route, RouteStop, SeatLayout, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
 
 interface Times { minutes_from_start: number; dwell_minutes: number; publish_from_web?: boolean }
@@ -24,6 +24,7 @@ export function ServicesPage() {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // id o 'nuevo'
   const [code, setCode] = useState('');
+  const [layoutId, setLayoutId] = useState('');
   const [deps, setDeps] = useState<DepForm[]>([]);
   const [times, setTimes] = useState<Record<string, Times>>({});
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
@@ -31,6 +32,15 @@ export function ServicesPage() {
 
   const services = useQuery(async () => must(await supabase.from('services').select('*').is('deleted_at', null).order('code')) as Service[], []);
   const allDeps = useQuery(async () => must(await supabase.from('service_departures').select('*').order('departure_time')) as ServiceDeparture[], []);
+  const layouts = useQuery(async () => must(await supabase.from('seat_layouts').select('id,group_id,version,name').order('name').order('version', { ascending: false })) as Pick<SeatLayout, 'id' | 'group_id' | 'version' | 'name'>[], []);
+  const caps = useQuery(async () => must(await supabase.from('seat_layout_capacity').select('layout_id,seats')) as { layout_id: string; seats: number }[], []);
+  // una opción por disposición (su última versión): las versiones de un mismo grupo son la misma disposición
+  const layoutOptions = (layouts.data ?? []).filter((l, i, all) => all.findIndex((x) => x.group_id === l.group_id) === i);
+  const latestOf = (id: string | null) => {
+    const found = (layouts.data ?? []).find((l) => l.id === id);
+    return found ? layoutOptions.find((l) => l.group_id === found.group_id)?.id ?? '' : '';
+  };
+  const layoutLabel = (l: { id: string; name: string }) => `${l.name} · ${caps.data?.find((c) => c.layout_id === l.id)?.seats ?? 0} asientos`;
   const routes = useQuery(async () => must(await supabase.from('routes').select('*').eq('active', true).order('name')) as Route[], []);
   const stops = useQuery(async () => must(await supabase.from('route_stops').select('*').order('position')) as RouteStop[], []);
   const svcStops = useQuery(async () => must(await supabase.from('service_stops').select('*')) as ServiceStop[], []);
@@ -50,9 +60,9 @@ export function ServicesPage() {
     return next;
   };
 
-  const openNew = () => { setMsg(null); setEditing('nuevo'); setCode(''); setDeps([blankDep()]); setTimes({}); };
+  const openNew = () => { setMsg(null); setEditing('nuevo'); setCode(''); setLayoutId(''); setDeps([blankDep()]); setTimes({}); };
   const openEdit = (s: Service) => {
-    setMsg(null); setEditing(s.id); setCode(s.code);
+    setMsg(null); setEditing(s.id); setCode(s.code); setLayoutId(latestOf(s.layout_id));
     const mine = (allDeps.data ?? []).filter((d) => d.service_id === s.id);
     setDeps(mine.map((d) => ({ id: d.id, route_id: d.route_id, time: d.departure_time.slice(0, 5), types: d.day_types, active: d.active })));
     setTimes(withDefaults({}, [...new Set(mine.map((d) => d.route_id))], (svcStops.data ?? []).filter((x) => x.service_id === s.id)));
@@ -78,6 +88,8 @@ export function ServicesPage() {
       p_route: rid,
       p_stop_ids: stopsOf(rid).filter((stop, index, routeStops) => index > 0 && index < routeStops.length - 1 && times[stop.id]?.publish_from_web).map((stop) => stop.id)
     })));
+    const layoutResult = await supabase.rpc('set_service_layout', { p_service: savedServiceId, p_layout: layoutId || null });
+    if (layoutResult.error) { setMsg({ kind: 'error', text: `El servicio se guardó, pero no se pudo guardar la disposición de asientos: ${friendly(layoutResult.error)}` }); return; }
     const flagError = savedFlags.find((result) => result.error)?.error;
     if (flagError) { setMsg({ kind: 'error', text: `El servicio se guardó, pero no se pudieron guardar las salidas publicadas en la web: ${friendly(flagError)}` }); return; }
     // la primera vez que se cargan los tiempos de un sentido quedan como estándar
@@ -147,6 +159,13 @@ export function ServicesPage() {
         <form className="card stack" onSubmit={save} aria-label="Servicio">
           <h2>{editing === 'nuevo' ? 'Nuevo servicio' : 'Editar servicio'}</h2>
           <label style={{ maxWidth: 240 }}>Código del servicio<input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="214" /></label>
+          <label style={{ maxWidth: 420 }}>Disposición de asientos
+            <select value={layoutId} onChange={(e) => setLayoutId(e.target.value)}>
+              <option value="">Sin disposición (la define la unidad)</option>
+              {layoutOptions.map((l) => <option key={l.id} value={l.id}>{layoutLabel(l)}</option>)}
+            </select>
+            <span className="muted">Los viajes se generan y se publican con esta disposición, sin elegir unidad ni conductor. Al iniciar el servicio, el conductor solo ve las unidades que tienen esta disposición. Cambiarla afecta a los viajes que se generen desde ahora.</span>
+          </label>
 
           <h3 style={{ margin: '4px 0 0' }}>Salidas</h3>
           <p className="muted" style={{ margin: 0 }}>Cargá todas las salidas del servicio: ida y vuelta, cada una con su horario y los tipos de día en que circula. Un feriado puede tener su propia grilla de horarios.</p>
@@ -243,7 +262,7 @@ export function ServicesPage() {
               {folderServices.filter((s) => matches(q, s.code)).length === 0 && <tr><td colSpan={4} className="muted">No hay servicios con salidas de {DAY_TYPE_LABEL[folder].toLowerCase()}.</td></tr>}
               {folderServices.filter((s) => matches(q, s.code)).map((s) => (
                 <tr key={s.id}>
-                  <td><b>{s.code}</b></td>
+                  <td><b>{s.code}</b>{s.layout_id && <><br /><span className="muted" style={{ fontSize: 12 }}>{layoutOptions.find((l) => l.id === latestOf(s.layout_id))?.name ?? ''}</span></>}</td>
                   <td>{summary(s)}</td>
                   <td>{s.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Pausado</span>}</td>
                   <td>{canEdit && <div className="row"><button className="secondary" onClick={() => openEdit(s)}>Editar</button><button className="secondary" onClick={() => toggle(s)}>{s.active ? 'Pausar' : 'Activar'}</button><button className="danger" disabled={removing === s.id} onClick={() => remove(s)}>{removing === s.id ? 'Eliminando...' : 'Eliminar'}</button></div>}</td>

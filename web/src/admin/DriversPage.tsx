@@ -15,7 +15,7 @@ export function DriversPage() {
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const drivers = useQuery(async () => must(await supabase.from('profiles').select('*').eq('role', 'driver').order('full_name')) as Profile[], []);
+  const drivers = useQuery(async () => must(await supabase.from('profiles').select('*').eq('role', 'driver').is('deleted_at', null).order('full_name')) as Profile[], []);
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,6 +31,14 @@ export function DriversPage() {
   const toggle = async (d: Profile) => {
     const { error } = await supabase.from('profiles').update({ active: !d.active }).eq('id', d.id);
     if (error) setMsg({ kind: 'error', text: friendly(error) }); else drivers.reload();
+  };
+
+  const remove = async (d: Profile) => {
+    if (!window.confirm(`¿Eliminar a ${d.full_name}? Si ya tiene viajes, ventas o jornadas, deja de aparecer y no puede ingresar, pero su historial se conserva. Si nunca tuvo actividad, se borra del todo.`)) return;
+    const { data, error } = await supabase.rpc('remove_driver', { p_driver: d.id });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    setMsg({ kind: 'ok', text: (data as { kept_history?: boolean } | null)?.kept_history ? `${d.full_name} eliminado. Su historial se conserva.` : `${d.full_name} eliminado.` });
+    drivers.reload();
   };
 
   const editLegajo = async (d: Profile) => {
@@ -76,7 +84,7 @@ export function DriversPage() {
                 <tr key={d.id}>
                   <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
                   <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
-                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button></div>}</td>
+                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></div>}</td>
                 </tr>
               ))}
             </tbody>

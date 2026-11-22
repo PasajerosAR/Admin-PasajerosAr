@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
@@ -12,8 +12,19 @@ interface IncidentRow {
   trips: { services: { code: string } | null } | null; profiles: { full_name: string } | null;
 }
 
+interface StaleTrip {
+  id: string; service_date: string; scheduled_departure: string; started_at: string | null;
+  services: { code: string } | null; service_departures: { routes: { name: string } | null } | null;
+}
+
+// "YYYY-MM-DDTHH:mm" en hora local, el formato de <input type="datetime-local">
+const toLocalInput = (value: Date) => {
+  const shifted = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return shifted.toISOString().slice(0, 16);
+};
+
 interface TripRow {
-  id: string; status: TripStatus; scheduled_departure: string; vehicle_id: string | null; driver_id: string | null;
+  id: string; service_id: string; layout_id: string | null; status: TripStatus; scheduled_departure: string; vehicle_id: string | null; driver_id: string | null;
   started_at: string | null; started_manually: boolean; day_type: DayType; published_at: string | null;
   services: { code: string } | null;
   service_departures: { routes: { name: string } | null } | null;
@@ -34,7 +45,7 @@ export function TripsPage() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,published_at,services(code),service_departures(routes(name))')
+    .select('id,service_id,layout_id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,published_at,services(code),service_departures(routes(name))')
     .eq('service_date', date).neq('status', 'cancelled').order('scheduled_departure')) as unknown as TripRow[], [date]);
   const incidents = useQuery(async () => {
     const from = new Date(`${date}T00:00:00`), to = new Date(from.getTime() + 24 * 3600 * 1000);
@@ -42,7 +53,21 @@ export function TripsPage() {
       .gte('created_at', from.toISOString()).lt('created_at', to.toISOString()).order('created_at', { ascending: false })) as unknown as IncidentRow[];
   }, [date]);
   const vehicles = useQuery(async () => must(await supabase.from('vehicles').select('*').order('internal_number')) as Vehicle[], []);
-  const drivers = useQuery(async () => must(await supabase.from('profiles').select('*').eq('role', 'driver').eq('active', true).order('full_name')) as Profile[], []);
+  const drivers = useQuery(async () => must(await supabase.from('profiles').select('*').eq('role', 'driver').eq('active', true).is('deleted_at', null).order('full_name')) as Profile[], []);
+  // disposiciones (una opción por grupo, su última versión) y unidades que tiene cada servicio con disposición
+  const layouts = useQuery(async () => must(await supabase.from('seat_layouts').select('id,group_id,version,name').order('name').order('version', { ascending: false })) as { id: string; group_id: string; version: number; name: string }[], []);
+  const compat = useQuery(async () => must(await supabase.rpc('service_layout_vehicles')) as Record<string, string[]>, []);
+  // viajes en curso de días anteriores: se pueden finalizar a mano desde cualquier fecha
+  const stale = useQuery(async () => must(await supabase.from('trips')
+    .select('id,service_date,scheduled_departure,started_at,services(code),service_departures(routes(name))')
+    .eq('status', 'in_progress').lt('service_date', todayLocal()).order('scheduled_departure')) as unknown as StaleTrip[], []);
+  const [ending, setEnding] = useState<{ id: string; label: string; value: string; min: string; reason: string } | null>(null);
+
+  // el panel se refresca solo: así se ve cuando un conductor inicia o finaliza un viaje
+  useEffect(() => {
+    const timer = setInterval(() => { trips.reload(); stale.reload(); }, 20_000);
+    return () => clearInterval(timer);
+  }, [trips.reload, stale.reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (fn: () => PromiseLike<{ error: { message: string } | null }>, ok: string) => {
     const { error } = await fn();
@@ -61,6 +86,40 @@ export function TripsPage() {
     run(() => supabase.from('trips').update({ vehicle_id: vehicle || null }).in('id', ids), 'Vehículo asignado a todas las vueltas.');
   const assign = (id: string, patch: { vehicle_id?: string | null; driver_id?: string | null }) =>
     run(() => supabase.from('trips').update(patch).eq('id', id), 'Asignación guardada.');
+  const layoutGroup = (id: string | null) => (layouts.data ?? []).find((l) => l.id === id)?.group_id ?? null;
+  const layoutOptions = (layouts.data ?? []).filter((l, i, all) => all.findIndex((x) => x.group_id === l.group_id) === i);
+  // unidades que sirven para el viaje: si el servicio tiene disposición, solo las que la tienen (más la ya asignada)
+  const vehiclesFor = (trip: TripRow) => {
+    const restricted = compat.data?.[trip.service_id];
+    if (!restricted) return vehicles.data ?? [];
+    const group = layoutGroup(trip.layout_id);
+    return (vehicles.data ?? []).filter((v) => v.id === trip.vehicle_id
+      || (group ? layoutGroup(v.layout_id) === group : restricted.includes(v.id)));
+  };
+  const vehiclesForService = (serviceId: string) => {
+    const restricted = compat.data?.[serviceId];
+    return restricted ? (vehicles.data ?? []).filter((v) => restricted.includes(v.id)) : vehicles.data ?? [];
+  };
+  const setLayout = (id: string, layout: string) =>
+    run(() => supabase.rpc('admin_set_trip_layout', { p_trip: id, p_layout: layout }), 'Disposición del viaje cambiada.');
+
+  const openEnding = async (trip: { id: string; started_at: string | null; scheduled_departure: string; services: { code: string } | null }) => {
+    const { data } = await supabase.rpc('trip_expected_arrival', { p_trip: trip.id });
+    const started = trip.started_at ? new Date(trip.started_at) : new Date(trip.scheduled_departure);
+    const expected = data ? new Date(data as string) : new Date();
+    const proposal = new Date(Math.min(Math.max(expected.getTime(), started.getTime()), Date.now()));
+    setEnding({
+      id: trip.id, label: `#${trip.services?.code ?? '-'} · ${formatTime(trip.scheduled_departure)}`,
+      value: toLocalInput(proposal), min: toLocalInput(started), reason: ''
+    });
+  };
+  const confirmEnding = async () => {
+    if (!ending) return;
+    const { error } = await supabase.rpc('admin_end_trip', { p_trip: ending.id, p_ended_at: new Date(ending.value).toISOString(), p_reason: ending.reason });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    setEnding(null); setMsg({ kind: 'ok', text: 'Viaje finalizado manualmente.' }); trips.reload(); stale.reload();
+  };
+
   const startManually = (id: string) => {
     const reason = window.prompt('Motivo del inicio manual (queda registrado):');
     if (reason === null) return;
@@ -116,6 +175,42 @@ export function TripsPage() {
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && drafts > 0 && <Notice kind="warn">Hay {drafts} viajes sin publicar: los pasajeros todavía no los ven.</Notice>}
       {trips.error && <Notice>{trips.error}</Notice>}
+      {canEdit && (stale.data ?? []).length > 0 && (
+        <div className="card">
+          <h2>Viajes en curso de días anteriores</h2>
+          <p className="muted">Siguen "en curso" porque nadie los finalizó. Finalizalos a mano para que dejen de verse.</p>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Servicio</th><th>Fecha</th><th>Recorrido</th><th>Salida</th><th /></tr></thead>
+              <tbody>
+                {(stale.data ?? []).map((t) => (
+                  <tr key={t.id}>
+                    <td><b>#{t.services?.code}</b></td>
+                    <td>{new Date(`${t.service_date}T12:00:00`).toLocaleDateString('es-AR')}</td>
+                    <td>{t.service_departures?.routes?.name}</td>
+                    <td>{formatTime(t.scheduled_departure)}</td>
+                    <td><button className="secondary" onClick={() => openEnding(t)}>Finalizar manual</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {canEdit && ending && (
+        <div className="card stack" role="dialog" aria-label="Finalizar viaje manualmente">
+          <h2>Finalizar viaje {ending.label}</h2>
+          <p className="muted">Se propone la hora de llegada prevista. Quedan registrados la hora, el motivo y que se cerró a mano.</p>
+          <div className="row">
+            <label>Hora de fin<input type="datetime-local" value={ending.value} min={ending.min} max={toLocalInput(new Date())} onChange={(e) => setEnding({ ...ending, value: e.target.value })} /></label>
+            <label>Motivo<input value={ending.reason} onChange={(e) => setEnding({ ...ending, reason: e.target.value })} placeholder="Ej.: el conductor no finalizó el viaje" /></label>
+          </div>
+          <div className="row">
+            <button disabled={!ending.value || ending.reason.trim().length < 3} onClick={confirmEnding}>Finalizar viaje</button>
+            <button className="secondary" onClick={() => setEnding(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
       {alerts.length > 0 && (
         <Notice kind="warn">{alerts.length === 1 ? '1 salida no inició' : `${alerts.length} salidas no iniciaron`} pasada la hora programada: {alerts.map((trip) => `#${trip.services?.code ?? '-'} · ${formatTime(trip.scheduled_departure)} · ${trip.service_departures?.routes?.name ?? 'sin recorrido'}`).join(' | ')}.</Notice>
       )}
@@ -172,7 +267,7 @@ export function TripsPage() {
                     <label className="group-vehicle">Vehículo para todas las vueltas del servicio
                       <select value={vs.size === 1 ? [...vs][0] : ''} onChange={(e) => assignGroup(ids, e.target.value)}>
                         <option value="">{vs.size > 1 ? 'Varios vehículos' : 'Sin asignar'}</option>
-                        {(vehicles.data ?? []).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
+                        {vehiclesForService(group.trips[0].service_id).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
                       </select>
                       <span className="muted">Si se rompe, el conductor inicia el viaje con otra unidad.</span>
                     </label>
@@ -180,7 +275,7 @@ export function TripsPage() {
                 })()}
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Servicio</th><th>Recorrido</th><th>Salida</th><th>Estado</th><th>Vehículo</th><th>Conductor</th><th /></tr></thead>
+                    <thead><tr><th>Servicio</th><th>Recorrido</th><th>Salida</th><th>Estado</th><th>Disposición</th><th>Vehículo</th><th>Conductor</th><th /></tr></thead>
                     <tbody>
                       {group.trips.map((t) => {
                         const editable = canEdit && t.status === 'scheduled';
@@ -195,9 +290,20 @@ export function TripsPage() {
                               {t.started_manually && <span className="muted"> (manual)</span>}
                             </td>
                             <td>
+                              {editable && compat.data?.[t.service_id]
+                                ? (
+                                  <select aria-label={`Disposición del servicio ${t.services?.code ?? ''} ${formatTime(t.scheduled_departure)}`}
+                                    value={layoutOptions.find((l) => l.group_id === layoutGroup(t.layout_id))?.id ?? ''} onChange={(e) => e.target.value && setLayout(t.id, e.target.value)}>
+                                    {!t.layout_id && <option value="">Sin disposición</option>}
+                                    {layoutOptions.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                  </select>
+                                )
+                                : <span className="muted">{layoutOptions.find((l) => l.group_id === layoutGroup(t.layout_id))?.name ?? '-'}</span>}
+                            </td>
+                            <td>
                               <select aria-label={`Vehículo del servicio ${t.services?.code ?? ''} ${formatTime(t.scheduled_departure)}`} disabled={!editable} value={t.vehicle_id ?? ''} onChange={(e) => assign(t.id, { vehicle_id: e.target.value || null })}>
                                 <option value="">Sin asignar</option>
-                                {(vehicles.data ?? []).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
+                                {vehiclesFor(t).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
                               </select>
                             </td>
                             <td>
@@ -207,6 +313,9 @@ export function TripsPage() {
                               </select>
                             </td>
                             <td>
+                              {canEdit && t.status === 'in_progress' && (
+                                <button className="secondary" onClick={() => openEnding({ id: t.id, started_at: t.started_at, scheduled_departure: t.scheduled_departure, services: t.services })}>Finalizar manual</button>
+                              )}
                               {editable && (
                                 <div className="row">
                                   <button className="secondary" disabled={!t.vehicle_id} onClick={() => startManually(t.id)}>Iniciar manual</button>
