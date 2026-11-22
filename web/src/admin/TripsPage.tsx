@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
@@ -62,12 +62,6 @@ export function TripsPage() {
     .select('id,service_date,scheduled_departure,started_at,services(code),service_departures(routes(name))')
     .eq('status', 'in_progress').lt('service_date', todayLocal()).order('scheduled_departure')) as unknown as StaleTrip[], []);
   const [ending, setEnding] = useState<{ id: string; label: string; value: string; min: string; reason: string } | null>(null);
-
-  // el panel se refresca solo: así se ve cuando un conductor inicia o finaliza un viaje
-  useEffect(() => {
-    const timer = setInterval(() => { trips.reload(); stale.reload(); }, 20_000);
-    return () => clearInterval(timer);
-  }, [trips.reload, stale.reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (fn: () => PromiseLike<{ error: { message: string } | null }>, ok: string) => {
     const { error } = await fn();
@@ -169,6 +163,7 @@ export function TripsPage() {
             </select>
           </label>
         )}
+        <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
         {canEdit && <button className="secondary" onClick={generate}>Generar viajes del día</button>}
         {canEdit && <button onClick={publish} disabled={drafts === 0}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>}
       </div>
