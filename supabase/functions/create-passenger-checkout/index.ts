@@ -131,7 +131,6 @@ Deno.serve(async (req) => {
         auto_return: 'approved',
         expires: true,
         expiration_date_to: order.expires_at,
-        binary_mode: true,
         payment_methods: {
           excluded_payment_types: [{ id: 'ticket' }]
         }
