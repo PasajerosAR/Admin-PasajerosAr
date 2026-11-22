@@ -41,8 +41,7 @@ Deno.serve(async (req) => {
         client_secret: requiredEnv('MP_CLIENT_SECRET'),
         grant_type: 'authorization_code',
         code,
-        redirect_uri: requiredEnv('MP_REDIRECT_URI'),
-        test_token: true
+        redirect_uri: requiredEnv('MP_REDIRECT_URI')
       })
     });
     if (!response.ok) {
