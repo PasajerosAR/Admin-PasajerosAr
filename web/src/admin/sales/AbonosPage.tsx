@@ -48,7 +48,7 @@ export function AbonosPage() {
     const chosen = TIERS.filter((t) => tiers[t]);
     if (chosen.length === 0) { setMsg({ kind: 'error', text: 'Elegí al menos una cantidad de viajes.' }); return; }
     const validDays = Number(days);
-    if (!Number.isInteger(validDays) || validDays < 1 || validDays > 730) { setMsg({ kind: 'error', text: 'La vigencia tiene que ser de 1 a 730 días.' }); return; }
+    if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) { setMsg({ kind: 'error', text: 'La vigencia tiene que ser de 1 a 365 días.' }); return; }
     const existing = new Set((products.data ?? []).filter((p) => p.active).map((p) => `${pairKey(p.place_a, p.place_b, p.seat_class)}|${p.trips}`));
     const rows = (pairs.data ?? [])
       .filter((p) => !target || pairKey(p.place_a, p.place_b, p.seat_class) === target)
@@ -132,6 +132,7 @@ export function AbonosPage() {
       <h1>Abonos</h1>
       <p className="muted">Paquetes de viajes por tramo (en ambos sentidos). Se venden acá y se usan en la ventanilla eligiendo “Abono” como forma de pago.</p>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
+      {[pairs.error, products.error, sold.error].filter(Boolean).map((e) => <Notice key={e}>{friendly(new Error(e as string))}</Notice>)}
 
       <form className="card stack" onSubmit={sell}>
         <h2>Vender un abono</h2>
@@ -199,7 +200,7 @@ export function AbonosPage() {
                   ))}</tbody>
                 </table></div>
                 <div className="row">
-                  <label>Vigencia (días desde la compra)<input type="number" min={1} max={730} value={days} onChange={(e) => setDays(e.target.value)} /></label>
+                  <label>Vigencia (días desde la compra)<input type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} /></label>
                   <button type="button" disabled={busy} onClick={generate}>Generar abonos</button>
                 </div>
               </>
@@ -221,7 +222,7 @@ export function AbonosPage() {
                     <tr key={p.id}>
                       <td>{label(p)}</td><td>{p.trips}</td>
                       <td><input type="number" min={0} aria-label="Precio" style={{ width: '7rem' }} value={e?.price ?? String(p.price)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, price: ev.target.value } })} /></td>
-                      <td><input type="number" min={1} max={730} aria-label="Días de vigencia" style={{ width: '5rem' }} value={e?.valid_days ?? String(p.valid_days)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, valid_days: ev.target.value } })} /></td>
+                      <td><input type="number" min={1} max={365} aria-label="Días de vigencia" style={{ width: '5rem' }} value={e?.valid_days ?? String(p.valid_days)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, valid_days: ev.target.value } })} /></td>
                       <td>{p.active ? 'Activo' : 'Pausado'}</td>
                       <td className="row">
                         {e && <button type="button" disabled={busy} onClick={() => saveRow(p)}>Guardar</button>}

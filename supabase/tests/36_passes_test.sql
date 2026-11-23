@@ -61,6 +61,7 @@ create temp table wused as
 select public.pass_redeem_web((r->>'pass_id')::uuid, (select trip_id from pt), (select first_stop from ps), (select last_stop from ps), '2') as r from sold;
 grant all on wused to authenticated;
 select t.expect_eq((select trips_left from public.passenger_my_passes()), 9, 'reservar por web descuenta un viaje');
+select t.expect_eq((select count(*) from public.passenger_my_tickets() where pass_id is not null and ticket_status = 'valid'), 1::bigint, 'el pasaje con abono aparece en Mis pasajes');
 select t.expect_eq((public.pass_cancel_ticket((select (r->>'ticket_id')::uuid from wused)))->>'returned', 'true', 'el pasajero cancela con anticipacion');
 select t.expect_eq((select trips_left from public.passenger_my_passes()), 10, 'vuelve el viaje al saldo');
 select t.expect_fail(format($q$select public.pass_cancel_ticket(%L)$q$, (select (r->>'ticket_id') from wused)), 'ALREADY_CANCELLED');
