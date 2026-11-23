@@ -108,6 +108,10 @@ Deno.serve(async (req) => {
       return url.toString();
     };
 
+    console.log('[CHECKOUT CONFIG]', {
+  passengerWebUrl: webUrl.toString(),
+  returnUrl: resultUrl('return')});
+
     const preference = await mpRequest<Preference>('/checkout/preferences', token, {
       method: 'POST',
       headers: { 'X-Idempotency-Key': order.order_id },
