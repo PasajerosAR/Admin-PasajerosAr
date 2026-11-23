@@ -61,11 +61,15 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const paymentId = String(body.data?.id ?? url.searchParams.get('data.id') ?? '');
     const orderId = url.searchParams.get('order_id') ?? '';
+    // compras de abonos usan el mismo aviso con kind=pass y su propia tabla
+    const isPass = url.searchParams.get('kind') === 'pass';
+    const ordersTable = isPass ? 'pass_checkout_orders' : 'passenger_checkout_orders';
+    const finalizeRpc = isPass ? 'finalize_pass_checkout' : 'finalize_passenger_checkout';
     if (!paymentId || !orderId || !(await validSignature(req, paymentId))) {
       return json({ error: 'Notificación inválida.' }, 401);
     }
 
-    const { data: order, error: orderError } = await admin.from('passenger_checkout_orders')
+    const { data: order, error: orderError } = await admin.from(ordersTable)
       .select('id,company_id,status,price,preference_id,mp_connection_id')
       .eq('id', orderId)
       .maybeSingle();
@@ -90,7 +94,7 @@ Deno.serve(async (req) => {
     if (payment.status !== 'approved') return json({ received: true });
 
     if (payment.currency_id !== 'ARS' || Number(payment.transaction_amount) !== Number(order.price)) {
-      const { error: refundMarkError } = await admin.from('passenger_checkout_orders').update({
+      const { error: refundMarkError } = await admin.from(ordersTable).update({
         status: 'refund_required',
         mp_payment_id: paymentId,
         refund_status: 'pending'
@@ -101,21 +105,21 @@ Deno.serve(async (req) => {
         if (refund.status !== 'approved') {
           return json({ received: true, refund_pending: true });
         }
-        const { error } = await admin.from('passenger_checkout_orders').update({
+        const { error } = await admin.from(ordersTable).update({
           status: 'cancelled',
           refund_status: 'refunded'
         }).eq('id', order.id).neq('status', 'approved');
         if (error) return json({ error: 'No se pudo registrar la devolución.' }, 500);
         return json({ received: true, refunded: true });
       } catch {
-        const { error } = await admin.from('passenger_checkout_orders').update({ refund_status: 'failed' })
+        const { error } = await admin.from(ordersTable).update({ refund_status: 'failed' })
           .eq('id', order.id).neq('status', 'approved');
         if (error) return json({ error: 'No se pudo registrar el estado de la devolución.' }, 500);
         return json({ error: 'No se pudo iniciar la devolución del pago.' }, 500);
       }
     }
 
-    const { data: result, error: finalizeError } = await admin.rpc('finalize_passenger_checkout', {
+    const { data: result, error: finalizeError } = await admin.rpc(finalizeRpc, {
       p_order: order.id,
       p_payment_id: paymentId,
       p_amount: payment.transaction_amount,
@@ -123,7 +127,7 @@ Deno.serve(async (req) => {
     });
     if (finalizeError) return json({ error: 'No se pudo emitir el pasaje.' }, 500);
     if (result?.status === 'refund_required') {
-      const { error: refundMarkError } = await admin.from('passenger_checkout_orders').update({ refund_status: 'pending' })
+      const { error: refundMarkError } = await admin.from(ordersTable).update({ refund_status: 'pending' })
         .eq('id', order.id).eq('status', 'refund_required');
       if (refundMarkError) return json({ error: 'No se pudo registrar la devolución pendiente.' }, 500);
       try {
@@ -131,14 +135,14 @@ Deno.serve(async (req) => {
         if (refund.status !== 'approved') {
           return json({ received: true, refund_pending: true });
         }
-        const { error } = await admin.from('passenger_checkout_orders').update({
+        const { error } = await admin.from(ordersTable).update({
           status: 'cancelled',
           refund_status: 'refunded'
         }).eq('id', order.id).eq('status', 'refund_required');
         if (error) return json({ error: 'No se pudo registrar la devolución.' }, 500);
         return json({ received: true, refunded: true });
       } catch {
-        const { error } = await admin.from('passenger_checkout_orders').update({ refund_status: 'failed' })
+        const { error } = await admin.from(ordersTable).update({ refund_status: 'failed' })
           .eq('id', order.id).eq('status', 'refund_required');
         if (error) return json({ error: 'No se pudo registrar el estado de la devolución.' }, 500);
         return json({ error: 'No se pudo iniciar la devolución del pago.' }, 500);

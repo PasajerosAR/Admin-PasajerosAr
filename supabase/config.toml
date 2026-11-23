@@ -380,6 +380,9 @@ verify_jwt = true
 [functions.mp-disconnect-company]
 verify_jwt = true
 
+[functions.create-pass-checkout]
+verify_jwt = true
+
 [functions.create-passenger-checkout]
 verify_jwt = true
 
