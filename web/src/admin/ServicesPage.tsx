@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
@@ -23,6 +23,10 @@ export function ServicesPage() {
   const [folder, setFolder] = useState<DayType>('weekday');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<string | null>(null); // id o 'nuevo'
+  const [copyOf, setCopyOf] = useState<string | null>(null); // código del servicio del que se copió (solo aviso)
+  const formRef = useRef<HTMLFormElement>(null);
+  // el formulario está arriba de la lista: al abrirlo se lleva a la vista (en el celular quedaba fuera de pantalla)
+  useEffect(() => { if (editing) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [editing]);
   const [code, setCode] = useState('');
   const [layoutId, setLayoutId] = useState('');
   const [deps, setDeps] = useState<DepForm[]>([]);
@@ -60,12 +64,19 @@ export function ServicesPage() {
     return next;
   };
 
-  const openNew = () => { setMsg(null); setEditing('nuevo'); setCode(''); setLayoutId(''); setDeps([blankDep()]); setTimes({}); };
-  const openEdit = (s: Service) => {
-    setMsg(null); setEditing(s.id); setCode(s.code); setLayoutId(latestOf(s.layout_id));
+  const openNew = () => { setMsg(null); setCopyOf(null); setEditing('nuevo'); setCode(''); setLayoutId(''); setDeps([blankDep()]); setTimes({}); };
+  // asCopy: abre un servicio NUEVO con todo lo del servicio s (salidas, tiempos por parada, disposición); falta elegir el código
+  const openEdit = (s: Service, asCopy = false) => {
+    setMsg(null); setCopyOf(asCopy ? s.code : null); setEditing(asCopy ? 'nuevo' : s.id); setCode(asCopy ? '' : s.code); setLayoutId(latestOf(s.layout_id));
     const mine = (allDeps.data ?? []).filter((d) => d.service_id === s.id);
-    setDeps(mine.map((d) => ({ id: d.id, route_id: d.route_id, time: d.departure_time.slice(0, 5), types: d.day_types, active: d.active })));
+    setDeps(mine.map((d) => ({ id: asCopy ? null : d.id, route_id: d.route_id, time: d.departure_time.slice(0, 5), types: d.day_types, active: d.active })));
     setTimes(withDefaults({}, [...new Set(mine.map((d) => d.route_id))], (svcStops.data ?? []).filter((x) => x.service_id === s.id)));
+  };
+
+  // desde el formulario de edición: lo que se ve en pantalla (incluidos cambios sin guardar) pasa a ser un servicio nuevo
+  const copyAsNew = () => {
+    const from = services.data?.find((s) => s.id === editing);
+    setMsg(null); setCopyOf(from?.code ?? code); setEditing('nuevo'); setCode(''); setDeps(deps.map((d) => ({ ...d, id: null })));
   };
 
   const patchDep = (i: number, p: Partial<DepForm>) => {
@@ -96,7 +107,7 @@ export function ServicesPage() {
     const fresh = usedRoutes.filter((rid) => !hasStandard(rid));
     if (fresh.length) await saveStandard(fresh);
     setMsg({ kind: 'ok', text: 'Servicio guardado.' });
-    setEditing(null); services.reload(); allDeps.reload(); svcStops.reload();
+    setEditing(null); setCopyOf(null); services.reload(); allDeps.reload(); svcStops.reload();
   };
 
   const remove = async (s: Service) => {
@@ -156,8 +167,12 @@ export function ServicesPage() {
       
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && editing && (
-        <form className="card stack" onSubmit={save} aria-label="Servicio">
-          <h2>{editing === 'nuevo' ? 'Nuevo servicio' : 'Editar servicio'}</h2>
+        <form ref={formRef} className="card stack" onSubmit={save} aria-label="Servicio">
+          <div className="row" style={{ alignItems: 'center' }}>
+            <h2 style={{ margin: 0 }}>{editing === 'nuevo' ? (copyOf ? 'Nuevo servicio (copia)' : 'Nuevo servicio') : 'Editar servicio'}</h2>
+            {editing !== 'nuevo' && <button type="button" className="secondary compact" onClick={copyAsNew}>Crear uno nuevo a partir de este</button>}
+          </div>
+          {editing === 'nuevo' && copyOf && <Notice kind="warn">Copiado del servicio {copyOf}: salidas, horarios por parada y disposición. Elegí el código del nuevo y cambiá lo que haga falta; no se guarda hasta que toques Guardar.</Notice>}
           <label style={{ maxWidth: 240 }}>Código del servicio<input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="214" /></label>
           <label style={{ maxWidth: 420 }}>Disposición de asientos
             <select value={layoutId} onChange={(e) => setLayoutId(e.target.value)}>
@@ -265,7 +280,7 @@ export function ServicesPage() {
                   <td><b>{s.code}</b>{s.layout_id && <><br /><span className="muted" style={{ fontSize: 12 }}>{layoutOptions.find((l) => l.id === latestOf(s.layout_id))?.name ?? ''}</span></>}</td>
                   <td>{summary(s)}</td>
                   <td>{s.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Pausado</span>}</td>
-                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => openEdit(s)}>Editar</button><button className="secondary" onClick={() => toggle(s)}>{s.active ? 'Pausar' : 'Activar'}</button><button className="danger" disabled={removing === s.id} onClick={() => remove(s)}>{removing === s.id ? 'Eliminando...' : 'Eliminar'}</button></div>}</td>
+                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => openEdit(s)}>Editar</button><button className="secondary" onClick={() => openEdit(s, true)}>Duplicar</button><button className="secondary" onClick={() => toggle(s)}>{s.active ? 'Pausar' : 'Activar'}</button><button className="danger" disabled={removing === s.id} onClick={() => remove(s)}>{removing === s.id ? 'Eliminando...' : 'Eliminar'}</button></div>}</td>
                 </tr>
               ))}
             </tbody>

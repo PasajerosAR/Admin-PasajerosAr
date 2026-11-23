@@ -8,6 +8,7 @@ import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
 
 interface Row { seller_id: string; seller_name: string; payment_method: PaymentMethod; sales: number; tickets: number; collected: number; refunded: number }
+interface PassRow { seller_id: string; seller_name: string; payment_method: PaymentMethod; passes: number; collected: number }
 const money = (n: number) => formatMoney(Number(n));
 
 // Cierre de caja: lo cobrado por vendedor y forma de pago. El vendedor ve lo suyo; el admin de empresa, todos.
@@ -29,6 +30,14 @@ export function CashClosePage() {
     setMsg(null);
     return must(await supabase.rpc('cash_close', { p_from: start.toISOString(), p_to: new Date(end.getTime() + 1000).toISOString(), p_seller: seller || null })) as Row[];
   }, [day, from, to, seller]);
+
+  // abonos vendidos en el período (el viaje usado con abono no cobra nada)
+  const passSales = useQuery(async () => {
+    const start = new Date(`${day}T${from}:00`); const end = new Date(`${day}T${to}:59`);
+    if (Number.isNaN(start.getTime()) || end <= start) return [] as PassRow[];
+    return must(await supabase.rpc('pass_cash_close', { p_from: start.toISOString(), p_to: new Date(end.getTime() + 1000).toISOString(), p_seller: seller || null })) as PassRow[];
+  }, [day, from, to, seller]);
+  const passRows = passSales.data ?? [];
 
   const rows = report.data ?? [];
   const bySeller = new Map<string, Row[]>();
@@ -55,7 +64,20 @@ export function CashClosePage() {
         )}
         <button type="button" className="secondary" onClick={() => window.print()}>Imprimir</button>
       </div>
-      {report.loading ? <Loading /> : bySeller.size === 0 ? <div className="card muted">No hay ventas en ese horario.</div> : (
+      {passRows.length > 0 && (
+        <div className="card table-wrap">
+          <h2>Abonos vendidos</h2>
+          <table>
+            <thead><tr><th>Vendedor</th><th>Forma de pago</th><th>Abonos</th><th>Cobrado</th></tr></thead>
+            <tbody>
+              {passRows.map((r) => <tr key={`${r.seller_id}${r.payment_method}`}><td>{r.seller_name}</td><td>{PAYMENT_METHOD_LABEL[r.payment_method]}</td><td>{r.passes}</td><td><b>{money(r.collected)}</b></td></tr>)}
+              <tr><td><b>Total abonos</b></td><td /><td><b>{passRows.reduce((n, r) => n + Number(r.passes), 0)}</b></td><td><b>{money(passRows.reduce((n, r) => n + Number(r.collected), 0))}</b></td></tr>
+            </tbody>
+          </table>
+          <p className="muted">Se suman al efectivo y demás cobros de la caja; no están incluidos en las tablas de pasajes.</p>
+        </div>
+      )}
+      {report.loading ? <Loading /> : bySeller.size === 0 ? <div className="card muted">No hay ventas de pasajes en ese horario.</div> : (
         <>
           {[...bySeller.entries()].map(([id, list]) => (
             <div key={id} className="card table-wrap">

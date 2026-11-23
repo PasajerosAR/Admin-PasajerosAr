@@ -33,6 +33,7 @@ const LINKS: [string, string, boolean][] = [
   ['/admin/ventas', 'Resumen de ventas', false],
   ['/admin/ventas/vender', 'Ventanilla', false],
   ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/abonos', 'Abonos', false],
   ['/admin/ventas/caja', 'Cierre de caja', false],
   ['/admin/ventas/tarifas', 'Tarifas', false],
   ['/admin/ventas/mercadopago', 'Mercado Pago', false],
@@ -42,6 +43,7 @@ const LINKS: [string, string, boolean][] = [
 const SELLER_LINKS: [string, string, boolean][] = [
   ['/admin/ventas/vender', 'Ventanilla', false],
   ['/admin/ventas/pasajes', 'Pasajes', false],
+  ['/admin/ventas/abonos', 'Abonos', false],
   ['/admin/ventas/caja', 'Cierre de caja', false],
   ['/admin/ventas/reportes', 'Reportes de ventas', false]
 ];
@@ -72,6 +74,7 @@ const ICONS: Record<string, string> = {
   '/admin/ventas': 'M5 20V10M12 20V4M19 20v-7',
   '/admin/ventas/vender': 'M3 7h18v10H3zM3 11h18M7 15h3',
   '/admin/ventas/pasajes': 'M4 8a2 2 0 0 0 0 4v4h16v-4a2 2 0 0 1 0-4V6H4zM14 6v12',
+  '/admin/ventas/abonos': 'M4 6h16v12H4zM4 10h16M8 14h3',
   '/admin/ventas/caja': 'M4 7h16v12H4zM8 7V5h8v2M12 11v4M10 13h4',
   '/admin/ventas/tarifas': 'M20 12l-8 8-9-9V4h7zM8 8h.01',
   '/admin/ventas/mercadopago': 'M3 8h18v10H3zM3 12h18M16 15h2',

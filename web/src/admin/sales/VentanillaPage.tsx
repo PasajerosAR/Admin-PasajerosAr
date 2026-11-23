@@ -11,10 +11,10 @@ import {
 import { printTickets, type PrintFormat, type PrintableTicket } from '../../lib/ticketPrint';
 import { SearchSelect } from '../SearchSelect';
 
-type Method = 'cash' | 'debit' | 'credit' | 'transfer';
+type Method = 'cash' | 'debit' | 'credit' | 'transfer' | 'pass';
 type TicketKind = 'regular' | 'courtesy' | 'disability';
 const METHODS: { key: Method; label: string }[] = [
-  { key: 'cash', label: 'Efectivo' }, { key: 'debit', label: 'Débito' }, { key: 'credit', label: 'Crédito' }, { key: 'transfer', label: 'Transferencia' }
+  { key: 'cash', label: 'Efectivo' }, { key: 'debit', label: 'Débito' }, { key: 'credit', label: 'Crédito' }, { key: 'transfer', label: 'Transferencia' }, { key: 'pass', label: 'Abono' }
 ];
 const REFRESH_MS = 8000;
 const CELL_LABEL: Record<string, string> = { door: 'Puerta', stairs: 'Escalera', driver: 'Conductor', toilet: 'Baño', trunk: 'Bodega' };
@@ -28,7 +28,8 @@ interface SoldTicket {
   id: string; qr_code: string; seat_label: string; price: number; passenger_name: string; passenger_dni: string;
   email: string | null; from_stop_id: string; to_stop_id: string; ticket_type: TicketKind;
 }
-interface Sale { sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method | 'complimentary'; receipt_number: number; channel: 'counter' | 'web'; created_at: string }
+interface PassRow { pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null; trips_left: number; expires_at: string }
+interface Sale { receiptByTicket?: Record<string, number>; sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method | 'complimentary'; receipt_number: number; channel: 'counter' | 'web'; created_at: string }
 
 export function VentanillaPage() {
   const [date, setDate] = useState(todayLocal());
@@ -45,6 +46,8 @@ export function VentanillaPage() {
   const [format, setFormat] = useState<PrintFormat>(() => { try { return window.localStorage.getItem('ventanilla.format') === 'a4' ? 'a4' : 'ticket'; } catch { return 'ticket'; } });
   const [holdUntil, setHoldUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [passDni, setPassDni] = useState('');
+  const [passId, setPassId] = useState('');
 
   const trips = useQuery(async () => must(await supabase.from('trips')
     .select('id,scheduled_departure,status,layout_id,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
@@ -60,6 +63,10 @@ export function VentanillaPage() {
   const floors = useQuery(async () => layoutId ? must(await supabase.from('layout_floors').select('floor,rows,cols').eq('layout_id', layoutId).order('floor')) as { floor: number; rows: number; cols: number }[] : [], [layoutId]);
   const prices = useQuery(async () => routeId ? must(await supabase.from('ticket_prices').select('from_pos,to_pos,price,seat_class').eq('route_id', routeId).eq('active', true)) as TaquillaPrice[] : [], [routeId]);
   const reservations = useQuery(async () => tripId ? must(await supabase.rpc('taquilla_seat_status', { p_trip: tripId })) as TaquillaRange[] : [], [tripId]);
+  const passDigits = passDni.replace(/\D/g, '');
+  const passes = useQuery(async () => method === 'pass' && passDigits.length >= 6
+    ? must(await supabase.rpc('staff_find_passes', { p_dni: passDigits, p_only_active: true, p_limit: 20 })) as PassRow[] : [], [method, passDigits]);
+  const pass = passes.data?.find((p) => p.pass_id === passId);
   const reloadRanges = reservations.reload;
   useEffect(() => {
     const id = window.setInterval(() => { if (!document.hidden) reloadRanges(); }, REFRESH_MS);
@@ -152,7 +159,7 @@ export function VentanillaPage() {
   const printable = (s: Sale): PrintableTicket[] => s.tickets.map((t) => ({
     qr_code: t.qr_code, seat_label: t.seat_label, price: t.price, passenger_name: t.passenger_name, passenger_dni: t.passenger_dni,
     from: stopName(t.from_stop_id), to: stopName(t.to_stop_id),
-    receiptNumber: s.receipt_number, salesChannel: s.channel === 'web' ? 'Web · Punto de venta' : 'Ventanilla',
+    receiptNumber: s.receiptByTicket?.[t.id] ?? s.receipt_number, salesChannel: s.channel === 'web' ? 'Web · Punto de venta' : 'Ventanilla',
     paymentMethod: s.method === 'complimentary' ? 'Sin cargo' : METHODS.find((m) => m.key === s.method)?.label ?? s.method,
     issueDate: new Date(s.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }),
     ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
@@ -161,8 +168,30 @@ export function VentanillaPage() {
     try { await printTickets(printable(s), info(), format); } catch (e) { setError(friendly(e)); }
   };
 
+  // cobro con abono: un viaje del saldo por asiento, sin cargo; el pasaje sale con su QR normal
+  const sellWithPass = async () => {
+    if (!pass) { setError('Buscá el DNI del titular y elegí el abono.'); return; }
+    if (chosen.length > pass.trips_left) { setError(`El abono tiene ${pass.trips_left} viaje${pass.trips_left === 1 ? '' : 's'} y elegiste ${chosen.length} asientos.`); return; }
+    setBusy(true); setError(null);
+    const tickets: SoldTicket[] = []; const receipts: Record<string, number> = {}; let last: { sale_id: string; created_at: string } | null = null;
+    try {
+      for (const c of chosen) {
+        const r = must(await supabase.rpc('pass_redeem_counter', { p_pass: pass.pass_id, p_trip: tripId, p_from: fromId, p_to: toId, p_seat_label: c.label })) as { sale_id: string; ticket_id: string; qr_code: string; seat_label: string };
+        const meta = must(await supabase.from('sales').select('receipt_number,created_at').eq('id', r.sale_id).single()) as { receipt_number: number; created_at: string };
+        tickets.push({ id: r.ticket_id, qr_code: r.qr_code, seat_label: r.seat_label, price: 0, passenger_name: pass.holder_name, passenger_dni: pass.holder_dni, email: null, from_stop_id: fromId, to_stop_id: toId, ticket_type: 'regular' });
+        receipts[r.ticket_id] = meta.receipt_number; last = { sale_id: r.sale_id, created_at: meta.created_at };
+      }
+    } catch (e) { setError(friendly(e)); }
+    if (tickets.length > 0 && last) {
+      const done: Sale = { sale_id: last.sale_id, total: 0, tickets, method: 'pass', receipt_number: receipts[tickets[0].id], receiptByTicket: receipts, channel: 'counter', created_at: last.created_at, email: null };
+      setSale(done); setPicked([]); setPax({}); setHoldUntil(null); setPassId(''); passes.reload(); void print(done);
+    }
+    reloadRanges(); setBusy(false);
+  };
+
   const sell = async () => {
     if (busy || chosen.length === 0) return;
+    if (method === 'pass') { await sellWithPass(); return; }
     const bad = chosen.find((s) => (pax[s.label]?.name ?? '').trim().length < 2 || (pax[s.label]?.dni ?? '').replace(/\D/g, '').length < 6);
     if (bad) { setError(`Cargá nombre y apellido y DNI del pasajero del asiento ${bad.label}.`); return; }
     setBusy(true); setError(null);
@@ -270,7 +299,7 @@ export function VentanillaPage() {
       {trip && chosen.length > 0 && (
         <div className="card stack">
           <h2>Pasajeros</h2>
-          {chosen.map((s) => (
+          {method === 'pass' ? chosen.map((s) => <div key={s.label} className="vt-pax"><b>Asiento {s.label}</b><span className="muted">{s.seatClass} · 1 viaje del abono</span></div>) : chosen.map((s) => (
             <div key={s.label} className="vt-pax">
               <b>Asiento {s.label}</b><span className="muted">{s.seatClass} · {formatMoney(s.price)}</span>
               <label>Tipo de pasaje
@@ -289,10 +318,23 @@ export function VentanillaPage() {
               {pax[s.label]?.found && <small className="muted">{pax[s.label]?.found}</small>}
             </div>
           ))}
-          <div className="vt-summary">
+          {method === 'pass' ? (
+            <div className="stack">
+              <label>DNI del titular del abono<input inputMode="numeric" maxLength={12} value={passDni} onChange={(e) => { setPassDni(e.target.value); setPassId(''); }} /></label>
+              {passDigits.length >= 6 && !passes.loading && (passes.data ?? []).length === 0 && <Notice kind="warn">Ese DNI no tiene abonos vigentes en esta empresa.</Notice>}
+              {(passes.data ?? []).length > 0 && (
+                <label>Abono
+                  <select value={passId} onChange={(e) => setPassId(e.target.value)}>
+                    <option value="">Elegir...</option>
+                    {(passes.data ?? []).map((p) => <option key={p.pass_id} value={p.pass_id}>{p.holder_name} · {p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''} · quedan {p.trips_left} · vence {new Date(p.expires_at).toLocaleDateString('es-AR')}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          ) : <div className="vt-summary">
             {summarize(chosen).map((r) => <div key={r.seatClass}><span>{r.seatClass} × {r.count}</span><b>{formatMoney(r.subtotal)}</b></div>)}
             <div className="vt-total"><span>Total</span><b>{formatMoney(total)}</b></div>
-          </div>
+          </div>}
           {holdLeft !== null && <p className="muted">{holdLeft > 0 ? `Asientos reservados ${minutes(holdLeft)}` : 'La reserva venció: otro puede tomar estos asientos.'}</p>}
           <div className="vt-methods" role="radiogroup" aria-label="Forma de pago">
             {METHODS.map((m) => <button key={m.key} type="button" role="radio" aria-checked={method === m.key} className={method === m.key ? 'is-active' : ''} onClick={() => setMethod(m.key)}>{m.label}</button>)}
@@ -304,7 +346,7 @@ export function VentanillaPage() {
                 <option value="ticket">Ticket 80 mm</option><option value="a4">Hoja A4</option>
               </select>
             </label>
-            <button type="button" disabled={busy || !validTrip} onClick={() => void sell()}>{busy ? 'Registrando...' : `Cobrar e imprimir · ${formatMoney(total)}`}</button>
+            <button type="button" disabled={busy || !validTrip} onClick={() => void sell()}>{busy ? 'Registrando...' : method === 'pass' ? `Usar abono e imprimir · ${chosen.length} viaje${chosen.length === 1 ? '' : 's'}` : `Cobrar e imprimir · ${formatMoney(total)}`}</button>
           </div>
         </div>
       )}

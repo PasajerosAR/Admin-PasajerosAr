@@ -95,13 +95,13 @@ export const INCIDENT_LABEL: Record<IncidentKind, string> = {
 };
 
 // ---------------------------------------------------------------- módulo de ventas
-export type PaymentMethod = 'cash' | 'debit' | 'credit' | 'transfer' | 'mp' | 'complimentary';
+export type PaymentMethod = 'cash' | 'debit' | 'credit' | 'transfer' | 'mp' | 'complimentary' | 'pass';
 export type SaleStatus    = 'completed' | 'refunded' | 'partial_refund';
 export type TicketStatus  = 'valid' | 'boarded' | 'cancelled';
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Efectivo', debit: 'Débito', credit: 'Crédito',
-  transfer: 'Transferencia', mp: 'MercadoPago', complimentary: 'Cortesía'
+  transfer: 'Transferencia', mp: 'MercadoPago', complimentary: 'Cortesía', pass: 'Abono'
 };
 export const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
   completed: 'Completada', refunded: 'Devuelta', partial_refund: 'Dev. parcial'

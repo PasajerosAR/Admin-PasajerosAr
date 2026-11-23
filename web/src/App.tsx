@@ -22,6 +22,7 @@ import { CashClosePage } from './admin/sales/CashClosePage';
 import { VentanillaPage } from './admin/sales/VentanillaPage';
 import { TicketsPage } from './admin/sales/TicketsPage';
 import { TarifasPage } from './admin/sales/TarifasPage';
+import { AbonosPage } from './admin/sales/AbonosPage';
 import { SalesDashboardPage } from './admin/sales/SalesDashboardPage';
 import { SalesReportsPage } from './admin/sales/SalesReportsPage';
 import { MercadoPagoPage } from './admin/sales/MercadoPagoPage';
@@ -139,6 +140,7 @@ export function App() {
         <Route path="ventas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <SalesDashboardPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/vender" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' ? <VentanillaPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/caja" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' ? <CashClosePage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/abonos" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' ? <AbonosPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/mercadopago" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <MercadoPagoPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/pasajes" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' || profile.role === 'support' ? <TicketsPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/tarifas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <TarifasPage /> : <Navigate to="/admin" replace />} />
