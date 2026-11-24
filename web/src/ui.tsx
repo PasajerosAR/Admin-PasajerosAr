@@ -20,8 +20,26 @@ export function Loading() {
   return <p className="muted">Cargando...</p>;
 }
 
+// siempre 24 hs (00:00 a 23:59); hourCycle evita el "24:05" que da hour12:false en algunos navegadores
 export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
+export const formatDateTime = (iso: string): string =>
+  new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' });
+
+/** Hora HH:MM en 24 hs. Reemplaza a <input type="time">, que muestra AM/PM según el celular. */
+export function TimeInput({ value, onChange, required, ariaLabel }: { value: string; onChange: (v: string) => void; required?: boolean; ariaLabel?: string }) {
+  const clean = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 4);
+    return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+  };
+  const valid = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
+  return (
+    <input type="text" inputMode="numeric" placeholder="HH:MM" maxLength={5} pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Hora en formato 24 hs, por ejemplo 21:30"
+      aria-label={ariaLabel} required={required} value={value} onChange={(e) => onChange(clean(e.target.value))}
+      onBlur={() => { if (value && !valid(value)) onChange(''); }} />
+  );
 }
 
 export function todayLocal(): string {

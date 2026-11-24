@@ -221,13 +221,13 @@ Deno.serve(async (req) => {
           origin: routeResult.data.origin?.name ?? '',
           destination: routeResult.data.destination?.name ?? '',
           date: new Date(`${tripResult.data.service_date}T12:00:00`).toLocaleDateString('es-AR'),
-          departure: scheduled.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' }),
+          departure: scheduled.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' }),
           from: stopNames.get(ticket.from_stop_id) ?? 'No disponible',
           to: stopNames.get(ticket.to_stop_id) ?? 'No disponible',
           receiptNumber: mine.data.receipt_number,
           channel: channelLabel(mine.data.channel),
           paymentMethod: paymentLabel(mine.data.payment_method),
-          issueDate: new Date(mine.data.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' })
+          issueDate: new Date(mine.data.created_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' })
         });
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',

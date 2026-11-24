@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
-import { Loading, Notice } from '../../ui';
+import { Loading, Notice, formatDateTime } from '../../ui';
 
 interface ConnectionStatus {
   connected: boolean;
@@ -90,7 +90,7 @@ export function MercadoPagoPage() {
         {loading ? <Loading /> : connection?.connected
           ? <>
             <Notice kind="ok">Conectada en modo de prueba · Usuario vendedor {connection.mp_user_id}</Notice>
-            <p className="muted">Conectada el {new Date(connection.connected_at ?? '').toLocaleString('es-AR')}.</p>
+            <p className="muted">Conectada el {formatDateTime(connection.connected_at ?? '')}.</p>
             <button type="button" className="danger" onClick={disconnect} disabled={busy}>
               {busy ? 'Procesando...' : 'Desconectar cuenta de prueba'}
             </button>

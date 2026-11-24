@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, formatTime, todayLocal } from '../../ui';
+import { Loading, Notice, formatDateTime, formatTime, todayLocal } from '../../ui';
 import type { RouteStop } from '../../lib/types';
 import {
   columnTemplate, formatMoney, priceFor, seatClassName, seatOccupied, seatState, summarize,
@@ -161,7 +161,7 @@ export function VentanillaPage() {
     from: stopName(t.from_stop_id), to: stopName(t.to_stop_id),
     receiptNumber: s.receiptByTicket?.[t.id] ?? s.receipt_number, salesChannel: s.channel === 'web' ? 'Web · Punto de venta' : 'Ventanilla',
     paymentMethod: s.method === 'complimentary' ? 'Sin cargo' : METHODS.find((m) => m.key === s.method)?.label ?? s.method,
-    issueDate: new Date(s.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }),
+    issueDate: formatDateTime(s.created_at),
     ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
   }));
   const print = async (s: Sale) => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { FilterBox, Loading, Notice, matches } from '../ui';
+import { FilterBox, Loading, Notice, TimeInput, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Route, RouteStop, SeatLayout, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
@@ -213,7 +213,7 @@ export function ServicesPage() {
                     {(routes.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </label>
-                <label style={{ flex: '0 0 140px' }}>Hora de salida<input type="time" value={d.time} onChange={(e) => patchDep(i, { time: e.target.value })} required /></label>
+                <label style={{ flex: '0 0 140px' }}>Hora de salida<TimeInput value={d.time} onChange={(v) => patchDep(i, { time: v })} required /></label>
                 <label style={{ flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={d.active} onChange={(e) => patchDep(i, { active: e.target.checked })} />Activa
                 </label>

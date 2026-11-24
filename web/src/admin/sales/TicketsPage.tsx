@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, formatTime, todayLocal } from '../../ui';
+import { Loading, Notice, formatDateTime, formatTime, todayLocal } from '../../ui';
 import type { PaymentMethod, SaleTicket } from '../../lib/types';
 import { PAYMENT_METHOD_LABEL, TICKET_STATUS_LABEL } from '../../lib/types';
 import { RefundModal } from './RefundModal';
@@ -67,7 +67,7 @@ export function TicketsPage() {
         receiptNumber: t.sales?.receipt_number ?? t.id.slice(0, 8),
         salesChannel: t.sales?.channel === 'web' ? 'Web · Punto de venta' : t.sales?.notes === 'Venta en taquilla' ? 'Taquilla del conductor' : 'Ventanilla',
         paymentMethod: t.sales ? PAYMENT_METHOD_LABEL[t.sales.payment_method] : 'No disponible',
-        issueDate: t.sales ? new Date(t.sales.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Argentina/Buenos_Aires' }) : '',
+        issueDate: t.sales ? formatDateTime(t.sales.created_at) : '',
         ticket_type: t.ticket_type === 'courtesy' ? 'Gentileza' : t.ticket_type === 'disability' ? 'Discapacidad' : undefined
       }], {
         company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
