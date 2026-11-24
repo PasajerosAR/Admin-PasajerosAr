@@ -5,6 +5,7 @@ import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice } from '../../ui';
 import { SearchSelect } from '../SearchSelect';
 import type { Route, RouteStop, TicketPrice } from '../../lib/types';
+import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from '../bulk';
 
 const SEAT_CLASSES = ['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'];
 
@@ -95,6 +96,17 @@ export function TarifasPage() {
     if (error) setMsg({ kind: 'error', text: friendly(error) }); else prices.reload();
   };
 
+  const bulk = useBulk((prices.data ?? []).map((p) => p.id));
+  const removeSelected = async () => {
+    if (!confirmDelete(bulk.count, 'tarifa', 'tarifas')) return;
+    setBusy(true);
+    const { error } = await supabase.from('ticket_prices').update({ active: false }).in('id', bulk.selected);
+    setBusy(false);
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    setMsg({ kind: 'ok', text: bulk.count === 1 ? 'Tarifa eliminada.' : `${bulk.count} tarifas eliminadas.` });
+    bulk.clear(); prices.reload();
+  };
+
   const stopName = (pos: number) =>
     stops.data?.find((s) => s.position === pos)?.name ?? `Parada ${pos}`;
 
@@ -174,17 +186,19 @@ export function TarifasPage() {
 
           <div className="card table-wrap">
             <h2>Tarifas activas</h2>
+            <BulkBar bulk={bulk} one="tarifa" many="tarifas" busy={busy} onDelete={() => void removeSelected()} />
             {prices.loading ? <Loading /> : (
               <table>
                 <thead>
-                  <tr><th>Desde</th><th>Hasta</th><th>Clase</th><th>Precio</th><th /></tr>
+                  <tr><HeadCheck bulk={bulk} /><th>Desde</th><th>Hasta</th><th>Clase</th><th>Precio</th><th /></tr>
                 </thead>
                 <tbody>
                   {(prices.data ?? []).length === 0 && (
-                    <tr><td colSpan={5} className="muted">No hay tarifas para este recorrido.</td></tr>
+                    <tr><td colSpan={6} className="muted">No hay tarifas para este recorrido.</td></tr>
                   )}
                   {(prices.data ?? []).map((p) => (
                     <tr key={p.id}>
+                      <RowCheck bulk={bulk} id={p.id} />
                       <td>{stopName(p.from_pos)}</td>
                       <td>{stopName(p.to_pos)}</td>
                       <td>{p.seat_class ?? <span className="muted">Todos</span>}</td>

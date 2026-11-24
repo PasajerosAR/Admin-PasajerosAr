@@ -5,6 +5,7 @@ import { must, useQuery } from '../lib/useQuery';
 import { Loading, Notice } from '../ui';
 import type { Locality } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
+import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
 
 // Localidades: lo que el pasajero elige como origen y destino. Las administra la plataforma para que no haya duplicados.
 export function PlacesPage() {
@@ -34,6 +35,15 @@ export function PlacesPage() {
     setMsg({ kind: 'ok', text: editing ? 'Localidad actualizada.' : 'Localidad agregada.' });
     reset(); places.reload();
   };
+  // solo se pueden borrar las que no tienen paradas
+  const bulk = useBulk((places.data ?? []).filter((p) => useCount(p.id) === 0).map((p) => p.id));
+  const removeSelected = async () => {
+    if (!confirmDelete(bulk.count, 'localidad', 'localidades')) return;
+    const { error } = await supabase.from('places').delete().in('id', bulk.selected);
+    if (error) { setMsg({ kind: 'error', text: 'No se pudo borrar: hay paradas que usan alguna de estas localidades.' }); return; }
+    setMsg({ kind: 'ok', text: bulk.count === 1 ? 'Localidad borrada.' : `${bulk.count} localidades borradas.` });
+    bulk.clear(); places.reload();
+  };
   const remove = async (p: Locality) => {
     const { error } = await supabase.from('places').delete().eq('id', p.id);
     if (error) setMsg({ kind: 'error', text: 'No se puede borrar: hay paradas que usan esta localidad.' }); else places.reload();
@@ -56,13 +66,15 @@ export function PlacesPage() {
         </form>
       )}
       <div className="card table-wrap">
+        {canEdit && <BulkBar bulk={bulk} one="localidad" many="localidades" onDelete={() => void removeSelected()} />}
         {places.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Localidad</th><th>Provincia</th><th>Paradas</th>{canEdit && <th />}</tr></thead>
+            <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Localidad</th><th>Provincia</th><th>Paradas</th>{canEdit && <th />}</tr></thead>
             <tbody>
-              {(places.data ?? []).length === 0 && <tr><td colSpan={canEdit ? 4 : 3} className="muted">Todavía no hay localidades. Cargá las de tus recorridos.</td></tr>}
+              {(places.data ?? []).length === 0 && <tr><td colSpan={canEdit ? 5 : 3} className="muted">Todavía no hay localidades. Cargá las de tus recorridos.</td></tr>}
               {(places.data ?? []).map((p) => (
                 <tr key={p.id}>
+                  {canEdit && <RowCheck bulk={bulk} id={p.id} disabled={useCount(p.id) > 0} />}
                   <td><b>{p.name}</b></td><td>{p.province ?? '-'}</td><td>{useCount(p.id)}</td>
                   {canEdit && <td><div className="row">
                     <button className="secondary" onClick={() => { setEditing(p.id); setName(p.name); setProvince(p.province ?? ''); }}>Editar</button>

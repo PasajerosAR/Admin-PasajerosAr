@@ -5,6 +5,7 @@ import { must, useQuery } from '../lib/useQuery';
 import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Profile } from '../lib/types';
+import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
 
 const EMPTY = { full_name: '', legajo: '', email: '', password: '', dni: '', phone: '' };
 
@@ -58,6 +59,27 @@ export function DriversPage() {
   const [q, setQ] = useState('');
   const visible = (drivers.data ?? []).filter((d) => matches(q, d.full_name, d.legajo, d.dni, d.phone));
 
+  const bulk = useBulk(visible.map((d) => d.id));
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const removeSelected = async () => {
+    const { data: pending } = await supabase.from('trips').select('id').in('driver_id', bulk.selected).in('status', ['scheduled', 'in_progress']);
+    const n = (pending ?? []).length;
+    const aviso = n > 0 ? `Atención: ${n} viaje${n > 1 ? 's' : ''} programado${n > 1 ? 's' : ''} o en curso quedarán sin conductor y tendrás que cubrirlos. ` : '';
+    if (!confirmDelete(bulk.count, 'conductor', 'conductores', `${aviso}Dejan de aparecer y no pueden ingresar. Su historial se conserva.`)) return;
+    setBulkBusy(true);
+    let done = 0; let without = 0; let failed = '';
+    for (const id of bulk.selected) {
+      const { data, error } = await supabase.rpc('remove_driver', { p_driver: id });
+      if (error) { failed = friendly(error); break; }
+      done += 1; without += (data as { trips_without_driver?: number } | null)?.trips_without_driver ?? 0;
+    }
+    setBulkBusy(false);
+    const tail = without ? ` ${without} viaje${without > 1 ? 's' : ''} quedó sin conductor: asignalo en Viajes.` : '';
+    setMsg(failed ? { kind: 'error', text: `Se eliminaron ${done} de ${bulk.count}. ${failed}` } : { kind: 'ok', text: `${done === 1 ? 'Conductor eliminado.' : `${done} conductores eliminados.`}${tail}` });
+    bulk.clear(); drivers.reload();
+  };
+
+
   const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
 
   return (
@@ -82,13 +104,15 @@ export function DriversPage() {
       )}
       <div className="card table-wrap">
         <FilterBox value={q} onChange={setQ} placeholder="Buscar por nombre, legajo o DNI" />
+        {canEdit && <BulkBar bulk={bulk} one="conductor" many="conductores" busy={bulkBusy} onDelete={() => void removeSelected()} />}
         {drivers.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+            <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {visible.length === 0 && <tr><td colSpan={6} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
+              {visible.length === 0 && <tr><td colSpan={7} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
               {visible.map((d) => (
                 <tr key={d.id}>
+                  {canEdit && <RowCheck bulk={bulk} id={d.id} />}
                   <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
                   <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
                   <td>{canEdit && <div className="row"><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></div>}</td>

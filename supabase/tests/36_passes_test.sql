@@ -62,6 +62,8 @@ select public.pass_redeem_web((r->>'pass_id')::uuid, (select trip_id from pt), (
 grant all on wused to authenticated;
 select t.expect_eq((select trips_left from public.passenger_my_passes()), 9, 'reservar por web descuenta un viaje');
 select t.expect_eq((select count(*) from public.passenger_my_tickets() where pass_id is not null and ticket_status = 'valid'), 1::bigint, 'el pasaje con abono aparece en Mis pasajes');
+select t.expect_eq((select payment_method from public.passenger_my_tickets() where pass_id is not null limit 1), 'pass', 'Mis pasajes trae el medio de pago');
+select t.expect_eq((select (receipt_number is not null and route_origin is not null and issued_at is not null) from public.passenger_my_tickets() where pass_id is not null limit 1), true, 'Mis pasajes trae comprobante, recorrido y emision');
 select t.expect_eq((public.pass_cancel_ticket((select (r->>'ticket_id')::uuid from wused)))->>'returned', 'true', 'el pasajero cancela con anticipacion');
 select t.expect_eq((select trips_left from public.passenger_my_passes()), 10, 'vuelve el viaje al saldo');
 select t.expect_fail(format($q$select public.pass_cancel_ticket(%L)$q$, (select (r->>'ticket_id') from wused)), 'ALREADY_CANCELLED');

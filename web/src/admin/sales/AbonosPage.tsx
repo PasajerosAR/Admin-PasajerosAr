@@ -5,6 +5,7 @@ import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice } from '../../ui';
 import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
+import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from '../bulk';
 
 interface Pair { place_a: string; place_b: string; place_a_name: string; place_b_name: string; seat_class: string | null; base_price: number }
 interface Product { id: string; place_a: string; place_b: string; seat_class: string | null; trips: number; price: number; valid_days: number; active: boolean }
@@ -74,6 +75,12 @@ export function AbonosPage() {
   const remove = (p: Product) => {
     if (!window.confirm('¿Eliminar este abono? Los ya vendidos no se modifican.')) return;
     void run(async () => { must(await supabase.from('pass_products').delete().eq('id', p.id)); }, 'Abono eliminado.');
+  };
+  const bulk = useBulk((products.data ?? []).map((p) => p.id));
+  const removeSelected = () => {
+    if (!confirmDelete(bulk.count, 'abono', 'abonos', 'Los abonos ya vendidos no se modifican.')) return;
+    const ids = bulk.selected;
+    void run(async () => { must(await supabase.from('pass_products').delete().in('id', ids)); bulk.clear(); }, ids.length === 1 ? 'Abono eliminado.' : `${ids.length} abonos eliminados.`);
   };
   const raise = () => {
     const n = Number(pct);
@@ -213,13 +220,15 @@ export function AbonosPage() {
               <label>Aumentar / bajar todos los precios (%)<input type="number" placeholder="Ej. 15" value={pct} onChange={(e) => setPct(e.target.value)} /></label>
               <button type="button" className="secondary" disabled={busy} onClick={raise}>Aplicar a los activos</button>
             </div>
+            <BulkBar bulk={bulk} one="abono" many="abonos" busy={busy} onDelete={removeSelected} />
             {products.loading ? <Loading /> : (products.data ?? []).length === 0 ? <p className="muted">Todavía no hay abonos.</p> : (
               <div className="table-wrap"><table>
-                <thead><tr><th>Tramo</th><th>Viajes</th><th>Precio</th><th>Días</th><th>Estado</th><th /></tr></thead>
+                <thead><tr><HeadCheck bulk={bulk} /><th>Tramo</th><th>Viajes</th><th>Precio</th><th>Días</th><th>Estado</th><th /></tr></thead>
                 <tbody>{(products.data ?? []).map((p) => {
                   const e = edit[p.id];
                   return (
                     <tr key={p.id}>
+                      <RowCheck bulk={bulk} id={p.id} />
                       <td>{label(p)}</td><td>{p.trips}</td>
                       <td><input type="number" min={0} aria-label="Precio" style={{ width: '7rem' }} value={e?.price ?? String(p.price)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, price: ev.target.value } })} /></td>
                       <td><input type="number" min={1} max={365} aria-label="Días de vigencia" style={{ width: '5rem' }} value={e?.valid_days ?? String(p.valid_days)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, valid_days: ev.target.value } })} /></td>

@@ -6,6 +6,7 @@ import { FilterBox, Loading, Notice, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Route, RouteStop, SeatLayout, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
+import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
 
 interface Times { minutes_from_start: number; dwell_minutes: number; publish_from_web?: boolean }
 interface DepForm { id: string | null; route_id: string; time: string; types: DayType[]; active: boolean }
@@ -147,6 +148,25 @@ export function ServicesPage() {
   const patchTime = (id: string, p: Partial<Times>) => setTimes({ ...times, [id]: { ...times[id], ...p } });
   const inFolder = (s: Service) => (allDeps.data ?? []).filter((d) => d.service_id === s.id && d.day_types.includes(folder));
   const folderServices = (services.data ?? []).filter((s) => inFolder(s).length > 0);
+
+  const shownServices = folderServices.filter((s) => matches(q, s.code));
+  const bulk = useBulk(shownServices.map((s) => s.id));
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const removeSelected = async () => {
+    if (!confirmDelete(bulk.count, 'servicio', 'servicios', 'Desaparecen de la lista; los viajes y ventas ya hechos se conservan en el historial. Los viajes futuros se cancelan.')) return;
+    setBulkBusy(true);
+    let done = 0; let failed = '';
+    for (const id of bulk.selected) {
+      const { error } = await supabase.rpc('remove_service', { p_service: id });
+      if (error) { failed = friendly(error); break; }
+      done += 1;
+      if (editing === id) setEditing(null);
+    }
+    setBulkBusy(false);
+    setMsg(failed ? { kind: 'error', text: `Se eliminaron ${done} de ${bulk.count}. ${failed}` } : { kind: 'ok', text: done === 1 ? 'Servicio eliminado.' : `${done} servicios eliminados.` });
+    bulk.clear(); services.reload(); allDeps.reload(); svcStops.reload();
+  };
+
   const countIn = (t: DayType) => (services.data ?? []).filter((s) => (allDeps.data ?? []).some((d) => d.service_id === s.id && d.day_types.includes(t))).length;
   const summary = (s: Service) => {
     const mine = inFolder(s);
@@ -270,13 +290,15 @@ export function ServicesPage() {
       </div>
       <div className="card table-wrap">
         <FilterBox value={q} onChange={setQ} placeholder="Buscar servicio" />
+        {canEdit && <BulkBar bulk={bulk} one="servicio" many="servicios" busy={bulkBusy} onDelete={() => void removeSelected()} />}
         {services.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Servicio</th><th>Salidas de {DAY_TYPE_LABEL[folder].toLowerCase()} (letras: H hábil, S sábado, D domingo, F feriado)</th><th>Estado</th><th /></tr></thead>
+            <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Servicio</th><th>Salidas de {DAY_TYPE_LABEL[folder].toLowerCase()} (letras: H hábil, S sábado, D domingo, F feriado)</th><th>Estado</th><th /></tr></thead>
             <tbody>
-              {folderServices.filter((s) => matches(q, s.code)).length === 0 && <tr><td colSpan={4} className="muted">No hay servicios con salidas de {DAY_TYPE_LABEL[folder].toLowerCase()}.</td></tr>}
-              {folderServices.filter((s) => matches(q, s.code)).map((s) => (
+              {folderServices.filter((s) => matches(q, s.code)).length === 0 && <tr><td colSpan={5} className="muted">No hay servicios con salidas de {DAY_TYPE_LABEL[folder].toLowerCase()}.</td></tr>}
+              {shownServices.map((s) => (
                 <tr key={s.id}>
+                  {canEdit && <RowCheck bulk={bulk} id={s.id} />}
                   <td><b>{s.code}</b>{s.layout_id && <><br /><span className="muted" style={{ fontSize: 12 }}>{layoutOptions.find((l) => l.id === latestOf(s.layout_id))?.name ?? ''}</span></>}</td>
                   <td>{summary(s)}</td>
                   <td>{s.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Pausado</span>}</td>
