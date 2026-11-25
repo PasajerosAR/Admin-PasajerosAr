@@ -119,6 +119,7 @@ export interface TicketPrice {
   price: number;
   seat_class: string | null;
   active: boolean;
+  day_type: DayType;
 }
 
 export interface Sale {

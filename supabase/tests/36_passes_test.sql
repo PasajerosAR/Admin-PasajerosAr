@@ -20,12 +20,13 @@ select (select id from public.route_stops where route_id = (select route_id from
 grant all on ps to authenticated;
 update public.route_stops set place_id = '77777777-0000-0000-0000-0000000000a1' where id = (select first_stop from ps);
 update public.route_stops set place_id = '77777777-0000-0000-0000-0000000000a2' where id = (select last_stop from ps);
-insert into public.ticket_prices (company_id, route_id, from_pos, to_pos, price)
-select 'aaaaaaaa-0000-0000-0000-000000000001', (select route_id from pt), f.position, l.position, 1000
-  from public.route_stops f, public.route_stops l where f.id = (select first_stop from ps) and l.id = (select last_stop from ps);
+delete from public.ticket_prices where route_id = (select route_id from pt);
+insert into public.ticket_prices (company_id, route_id, from_pos, to_pos, price, day_type)
+select 'aaaaaaaa-0000-0000-0000-000000000001', (select route_id from pt), f.position, l.position, 1000, d
+  from public.route_stops f, public.route_stops l, unnest(array['weekday', 'saturday', 'sunday', 'holiday']) d where f.id = (select first_stop from ps) and l.id = (select last_stop from ps);
 
 select t.login('a1000000-0000-0000-0000-000000000001');
-select t.expect_eq((select base_price >= 1000 from public.pass_fare_pairs() where place_a_name = 'Origen Abono' and seat_class is null), true, 'el generador ve la tarifa del tramo');
+select t.expect_eq((select bool_and(base_price >= 1000) and count(*) = 4 from public.pass_fare_pairs() where place_a_name = 'Origen Abono' and seat_class is null), true, 'el generador ve la tarifa del tramo por tipo de dia');
 insert into public.pass_products (id, company_id, place_a, place_b, trips, price, valid_days)
 values ('c1000000-0000-0000-0000-000000000001', 'aaaaaaaa-0000-0000-0000-000000000001',
         '77777777-0000-0000-0000-0000000000a1', '77777777-0000-0000-0000-0000000000a2', 10, 9000, 365);

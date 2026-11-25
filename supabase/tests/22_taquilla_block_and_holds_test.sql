@@ -2,7 +2,7 @@
 
 -- viaje con disposición y tarifa (misma preparación que la prueba de ventas)
 select t.login('a1000000-0000-0000-0000-000000000001');
-select public.save_ticket_price('33333333-0000-0000-0000-000000000001', 1, 3, 2500, null);
+select public.save_ticket_price('33333333-0000-0000-0000-000000000001', 1, 3, 2500, null, d) from unnest(array['weekday', 'saturday', 'sunday', 'holiday']) d;
 select public.generate_trips(date '2026-11-21', 'saturday');
 select t.logout();
 update public.trips

@@ -8,7 +8,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, daysTag, type DayType } from '../../lib/dayType';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from '../bulk';
 
-interface Pair { place_a: string; place_b: string; place_a_name: string; place_b_name: string; seat_class: string | null; base_price: number }
+interface Pair { place_a: string; place_b: string; place_a_name: string; place_b_name: string; seat_class: string | null; base_price: number; day_type: DayType }
 interface Product { id: string; place_a: string; place_b: string; seat_class: string | null; trips: number; price: number; valid_days: number; active: boolean; day_types: DayType[] }
 interface PassRow {
   pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null;
@@ -47,6 +47,9 @@ export function AbonosPage() {
     setBusy(true); setMsg(null);
     try { await fn(); setMsg({ kind: 'ok', text: ok }); products.reload(); } catch (e) { setMsg({ kind: 'error', text: friendly(e) }); } finally { setBusy(false); }
   };
+  // tarifas por tramo y clase, con el precio de cada tipo de día
+  const pairGroups = new Map<string, Pair[]>();
+  for (const p of pairs.data ?? []) { const k = pairKey(p.place_a, p.place_b, p.seat_class); pairGroups.set(k, [...(pairGroups.get(k) ?? []), p]); }
   const generate = () => {
     const chosen = TIERS.filter((t) => tiers[t]);
     if (chosen.length === 0) { setMsg({ kind: 'error', text: 'Elegí al menos una cantidad de viajes.' }); return; }
@@ -55,12 +58,18 @@ export function AbonosPage() {
     if (genDays.length === 0) { setMsg({ kind: 'error', text: 'Tildá al menos un tipo de día en el que valga el abono.' }); return; }
     const daysKey = (d: DayType[]) => DAY_TYPES.filter((t) => d.includes(t)).join(',');
     const existing = new Set((products.data ?? []).filter((p) => p.active).map((p) => `${pairKey(p.place_a, p.place_b, p.seat_class)}|${p.trips}|${daysKey(p.day_types)}`));
-    const rows = (pairs.data ?? [])
-      .filter((p) => !target || pairKey(p.place_a, p.place_b, p.seat_class) === target)
-      .flatMap((p) => chosen.map((t) => ({
-        place_a: p.place_a, place_b: p.place_b, seat_class: p.seat_class, trips: t, valid_days: validDays, active: true, day_types: genDays,
-        price: roundPrice(Number(p.base_price) * t * (1 - Math.min(Math.max(Number(disc[t]) || 0, 0), 90) / 100))
-      })))
+    // un tramo con precios distintos según el día genera un abono por cada precio, para los días que tienen ese precio
+    const rows = [...pairGroups.entries()]
+      .filter(([key]) => !target || key === target)
+      .flatMap(([, list]) => {
+        const byPrice = new Map<number, Pair[]>();
+        for (const p of list.filter((x) => genDays.includes(x.day_type))) byPrice.set(Number(p.base_price), [...(byPrice.get(Number(p.base_price)) ?? []), p]);
+        return [...byPrice.entries()].flatMap(([price, group]) => chosen.map((t) => ({
+          place_a: group[0].place_a, place_b: group[0].place_b, seat_class: group[0].seat_class, trips: t, valid_days: validDays, active: true,
+          day_types: DAY_TYPES.filter((d) => group.some((g) => g.day_type === d)),
+          price: roundPrice(price * t * (1 - Math.min(Math.max(Number(disc[t]) || 0, 0), 90) / 100))
+        })));
+      })
       .filter((r) => !existing.has(`${pairKey(r.place_a, r.place_b, r.seat_class)}|${r.trips}|${daysKey(r.day_types)}`));
     if (rows.length === 0) { setMsg({ kind: 'error', text: 'Esos abonos ya existen (o no hay tramos con tarifa).' }); return; }
     void run(async () => { must(await supabase.from('pass_products').insert(rows)); }, `Se crearon ${rows.length} abonos. Podés ajustar los precios en la lista.`);
@@ -193,13 +202,13 @@ export function AbonosPage() {
         <>
           <div className="card stack">
             <h2>Generar abonos desde las tarifas</h2>
-            <p className="muted">El precio sugerido es la tarifa del tramo × cantidad de viajes, menos el descuento. Después lo podés ajustar en la lista.</p>
+            <p className="muted">El precio sugerido es la tarifa del tramo × cantidad de viajes, menos el descuento. Si el tramo tiene precios distintos según el día (H, S, D, F), se crea un abono por cada precio, válido en los días que tienen ese precio. Después lo podés ajustar en la lista.</p>
             {pairs.loading ? <Loading /> : (pairs.data ?? []).length === 0 ? <Notice kind="warn">Primero cargá tarifas en “Tarifas”.</Notice> : (
               <>
                 <label>Tramo
                   <select value={target} onChange={(e) => setTarget(e.target.value)}>
                     <option value="">Todos los tramos con tarifa</option>
-                    {(pairs.data ?? []).map((p) => <option key={pairKey(p.place_a, p.place_b, p.seat_class)} value={pairKey(p.place_a, p.place_b, p.seat_class)}>{label(p)} · {formatMoney(Number(p.base_price))} por viaje</option>)}
+                    {[...pairGroups.entries()].map(([key, list]) => <option key={key} value={key}>{label(list[0])} · {DAY_TYPES.filter((d) => list.some((x) => x.day_type === d)).map((d) => `${DAY_TYPE_LETTER[d]} ${formatMoney(Number(list.find((x) => x.day_type === d)?.base_price))}`).join(' · ')} por viaje</option>)}
                   </select>
                 </label>
                 <div className="table-wrap"><table>

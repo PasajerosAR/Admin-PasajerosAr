@@ -21,7 +21,7 @@ const REFRESH_MS = 8000;
 const CELL_LABEL: Record<string, string> = { door: 'Puerta', stairs: 'Escalera', driver: 'Conductor', toilet: 'Baño', trunk: 'Bodega' };
 
 interface TripOption {
-  id: string; scheduled_departure: string; status: string; layout_id: string | null;
+  id: string; scheduled_departure: string; status: string; layout_id: string | null; day_type: string;
   services: { code: string } | null; service_departures: { route_id: string; routes: { name: string; origin: { name: string } | null; destination: { name: string } | null } | null } | null;
 }
 interface Pax { dni: string; name: string; email: string; ticketKind?: TicketKind; found?: string }
@@ -51,7 +51,7 @@ export function VentanillaPage() {
   const [passId, setPassId] = useState('');
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,scheduled_departure,status,layout_id,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
+    .select('id,scheduled_departure,status,layout_id,day_type,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
     .eq('service_date', date).in('status', ['scheduled', 'in_progress']).order('scheduled_departure')) as unknown as TripOption[], [date]);
   const trip = trips.data?.find((t) => t.id === tripId);
   const routeId = trip?.service_departures?.route_id ?? '';
@@ -62,7 +62,8 @@ export function VentanillaPage() {
   const cells = useQuery(async () => layoutId ? must(await supabase.from('layout_cells')
     .select('id,floor,row_idx,col_idx,kind,label,seat_class,blocked,unusable').eq('layout_id', layoutId)) as TaquillaCell[] : [], [layoutId]);
   const floors = useQuery(async () => layoutId ? must(await supabase.from('layout_floors').select('floor,rows,cols').eq('layout_id', layoutId).order('floor')) as { floor: number; rows: number; cols: number }[] : [], [layoutId]);
-  const prices = useQuery(async () => routeId ? must(await supabase.from('ticket_prices').select('from_pos,to_pos,price,seat_class').eq('route_id', routeId).eq('active', true)) as TaquillaPrice[] : [], [routeId]);
+  const dayType = trip?.day_type;
+  const prices = useQuery(async () => routeId && dayType ? must(await supabase.from('ticket_prices').select('from_pos,to_pos,price,seat_class').eq('route_id', routeId).eq('day_type', dayType).eq('active', true)) as TaquillaPrice[] : [], [routeId, dayType]);
   const reservations = useQuery(async () => tripId ? must(await supabase.rpc('taquilla_seat_status', { p_trip: tripId })) as TaquillaRange[] : [], [tripId]);
   const passDigits = passDni.replace(/\D/g, '');
   const passes = useQuery(async () => method === 'pass' && passDigits.length >= 6
