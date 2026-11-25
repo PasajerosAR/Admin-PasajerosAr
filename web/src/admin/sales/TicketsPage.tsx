@@ -72,7 +72,7 @@ export function TicketsPage() {
       }], {
         company: company.data?.[0]?.name ?? '', service: t.trips?.services?.code ?? '', route: t.trips?.service_departures?.routes?.name ?? '',
         origin: t.trips?.service_departures?.routes?.origin?.name ?? '', destination: t.trips?.service_departures?.routes?.destination?.name ?? '',
-        date: t.trips ? new Date(`${t.trips.service_date}T12:00:00`).toLocaleDateString('es-AR') : '',
+        date: t.trips ? new Date(t.trips.scheduled_departure).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : '',
         departure: t.trips ? formatTime(t.trips.scheduled_departure) : ''
       }, printFormat);
     } catch (e) { setMsg({ kind: 'error', text: friendly(e) }); }

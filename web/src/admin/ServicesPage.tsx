@@ -4,13 +4,14 @@ import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
 import { FilterBox, Loading, Notice, TimeInput, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
+import { suggestNextDay } from '../lib/midnight';
 import type { Route, RouteStop, SeatLayout, Service, ServiceDeparture, ServiceStop } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, type DayType } from '../lib/dayType';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
 
 interface Times { minutes_from_start: number; dwell_minutes: number; publish_from_web?: boolean }
-interface DepForm { id: string | null; route_id: string; time: string; types: DayType[]; active: boolean }
-const blankDep = (route_id = ''): DepForm => ({ id: null, route_id, time: '08:00', types: ['weekday', 'saturday', 'sunday'], active: true });
+interface DepForm { id: string | null; route_id: string; time: string; types: DayType[]; active: boolean; next_day: boolean; manual: boolean }
+const blankDep = (route_id = ''): DepForm => ({ id: null, route_id, time: '08:00', types: ['weekday', 'saturday', 'sunday'], active: true, next_day: false, manual: false });
 const addMinutesToTime = (time: string, minutes: number) => {
   const [hours, mins] = time.split(':').map(Number);
   const total = (hours * 60 + mins + minutes) % (24 * 60);
@@ -70,7 +71,7 @@ export function ServicesPage() {
   const openEdit = (s: Service, asCopy = false) => {
     setMsg(null); setCopyOf(asCopy ? s.code : null); setEditing(asCopy ? 'nuevo' : s.id); setCode(asCopy ? '' : s.code); setLayoutId(latestOf(s.layout_id));
     const mine = (allDeps.data ?? []).filter((d) => d.service_id === s.id);
-    setDeps(mine.map((d) => ({ id: asCopy ? null : d.id, route_id: d.route_id, time: d.departure_time.slice(0, 5), types: d.day_types, active: d.active })));
+    setDeps(mine.map((d) => ({ id: asCopy ? null : d.id, route_id: d.route_id, time: d.departure_time.slice(0, 5), types: d.day_types, active: d.active, next_day: d.next_day, manual: true })));
     setTimes(withDefaults({}, [...new Set(mine.map((d) => d.route_id))], (svcStops.data ?? []).filter((x) => x.service_id === s.id)));
   };
 
@@ -80,8 +81,13 @@ export function ServicesPage() {
     setMsg(null); setCopyOf(from?.code ?? code); setEditing('nuevo'); setCode(''); setDeps(deps.map((d) => ({ ...d, id: null })));
   };
 
+  // las salidas de madrugada de un servicio nocturno se marcan solas como del día siguiente (el admin puede corregir)
+  const withAutoNextDay = (list: DepForm[]) => {
+    const auto = suggestNextDay(list.map((d) => d.time));
+    return list.map((d) => (d.manual ? d : { ...d, next_day: auto[d.time] ?? false }));
+  };
   const patchDep = (i: number, p: Partial<DepForm>) => {
-    const next = deps.map((d, j) => (j === i ? { ...d, ...p } : d));
+    const next = withAutoNextDay(deps.map((d, j) => (j === i ? { ...d, ...p, ...('time' in p ? { manual: false } : {}) } : d)));
     setDeps(next);
     if (p.route_id) setTimes(withDefaults(times, [p.route_id]));
   };
@@ -91,7 +97,7 @@ export function ServicesPage() {
     const existing = services.data?.find((s) => s.id === editing);
     const { data: savedServiceId, error } = await supabase.rpc('save_service', {
       p_service: editing === 'nuevo' ? null : editing, p_code: code, p_active: existing?.active ?? true,
-      p_departures: deps.map((d) => ({ id: d.id, route_id: d.route_id, time: d.time, day_types: d.types, active: d.active })),
+      p_departures: deps.map((d) => ({ id: d.id, route_id: d.route_id, time: d.time, next_day: d.next_day, day_types: d.types, active: d.active })),
       p_stops: usedRoutes.flatMap((rid) => stopsOf(rid).map((s) => ({ route_stop_id: s.id, ...times[s.id] })))
     });
     if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
@@ -173,7 +179,7 @@ export function ServicesPage() {
     return [...new Set(mine.map((d) => d.route_id))].map((rid) => (
       <div key={rid}><b>{routeName(rid)}:</b> {mine.filter((d) => d.route_id === rid).map((d) => (
         <span key={d.id} title={d.day_types.map((t) => DAY_TYPE_LABEL[t]).join(', ')} style={{ marginRight: 10 }}>
-          {d.departure_time.slice(0, 5)} <span className="muted" style={{ fontSize: 12 }}>{DAY_TYPES.filter((t) => d.day_types.includes(t)).map((t) => DAY_TYPE_LETTER[t]).join('')}</span>
+          {d.departure_time.slice(0, 5)}{d.next_day ? <sup title="Día siguiente"> +1</sup> : null} <span className="muted" style={{ fontSize: 12 }}>{DAY_TYPES.filter((t) => d.day_types.includes(t)).map((t) => DAY_TYPE_LETTER[t]).join('')}</span>
         </span>))}</div>
     ));
   };
@@ -214,10 +220,13 @@ export function ServicesPage() {
                   </select>
                 </label>
                 <label style={{ flex: '0 0 140px' }}>Hora de salida<TimeInput value={d.time} onChange={(v) => patchDep(i, { time: v })} required /></label>
+                <label style={{ flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: 6 }} title="Sale después de las 00:00, ya en el día calendario siguiente. Se marca sola cuando el servicio pasa la medianoche.">
+                  <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={d.next_day} onChange={(e) => patchDep(i, { next_day: e.target.checked, manual: true })} />Día siguiente (+1)
+                </label>
                 <label style={{ flex: '0 0 auto', flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={d.active} onChange={(e) => patchDep(i, { active: e.target.checked })} />Activa
                 </label>
-                <button type="button" className="danger" disabled={deps.length <= 1} onClick={() => setDeps(deps.filter((_, j) => j !== i))}>Quitar</button>
+                <button type="button" className="danger" disabled={deps.length <= 1} onClick={() => setDeps(withAutoNextDay(deps.filter((_, j) => j !== i)))}>Quitar</button>
               </div>
               <div className="row" style={{ marginTop: 8, flexWrap: 'wrap', gap: 10 }} role="group" aria-label="Tipos de día de la salida">
                 {DAY_TYPES.map((t) => (
@@ -230,7 +239,7 @@ export function ServicesPage() {
             </div>
           ))}
           <div className="row">
-            <button type="button" className="secondary" onClick={() => setDeps([...deps, blankDep(deps.at(-1)?.route_id)])}>Agregar salida</button>
+            <button type="button" className="secondary" onClick={() => setDeps(withAutoNextDay([...deps, blankDep(deps.at(-1)?.route_id)]))}>Agregar salida</button>
           </div>
 
           {usedRoutes.map((rid) => (

@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
           route: routeResult.data.name,
           origin: routeResult.data.origin?.name ?? '',
           destination: routeResult.data.destination?.name ?? '',
-          date: new Date(`${tripResult.data.service_date}T12:00:00`).toLocaleDateString('es-AR'),
+          date: new Date(tripResult.data.scheduled_departure).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }),
           departure: scheduled.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'America/Argentina/Buenos_Aires' }),
           from: stopNames.get(ticket.from_stop_id) ?? 'No disponible',
           to: stopNames.get(ticket.to_stop_id) ?? 'No disponible',
