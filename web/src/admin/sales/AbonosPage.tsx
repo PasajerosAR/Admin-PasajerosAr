@@ -5,13 +5,14 @@ import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice } from '../../ui';
 import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
+import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, daysTag, type DayType } from '../../lib/dayType';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from '../bulk';
 
 interface Pair { place_a: string; place_b: string; place_a_name: string; place_b_name: string; seat_class: string | null; base_price: number }
-interface Product { id: string; place_a: string; place_b: string; seat_class: string | null; trips: number; price: number; valid_days: number; active: boolean }
+interface Product { id: string; place_a: string; place_b: string; seat_class: string | null; trips: number; price: number; valid_days: number; active: boolean; day_types: DayType[] }
 interface PassRow {
   pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null;
-  trips_total: number; trips_left: number; price: number; purchased_at: string; expires_at: string; status: string; expired: boolean
+  trips_total: number; trips_left: number; price: number; purchased_at: string; expires_at: string; status: string; expired: boolean; day_types: DayType[]
 }
 type Method = 'cash' | 'debit' | 'credit' | 'transfer';
 const METHODS: { key: Method; label: string }[] = [
@@ -32,7 +33,7 @@ export function AbonosPage() {
 
   const pairs = useQuery(async () => isAdmin ? must(await supabase.rpc('pass_fare_pairs')) as Pair[] : [], [isAdmin]);
   const products = useQuery(async () => must(await supabase.from('pass_products')
-    .select('id,place_a,place_b,seat_class,trips,price,valid_days,active').order('trips')) as Product[], []);
+    .select('id,place_a,place_b,seat_class,trips,price,valid_days,active,day_types').order('trips')) as Product[], []);
   const names = new Map<string, string>();
   for (const p of pairs.data ?? []) { names.set(p.place_a, p.place_a_name); names.set(p.place_b, p.place_b_name); }
 
@@ -41,6 +42,7 @@ export function AbonosPage() {
   const [disc, setDisc] = useState<Record<number, string>>(Object.fromEntries(TIERS.map((t) => [t, String(DEFAULT_DISCOUNT[t])])));
   const [days, setDays] = useState('30');
   const [target, setTarget] = useState('');   // '' = todos los tramos
+  const [genDays, setGenDays] = useState<DayType[]>([...DAY_TYPES]);   // días en los que valen los abonos que se generan
   const run = async (fn: () => Promise<void>, ok: string) => {
     setBusy(true); setMsg(null);
     try { await fn(); setMsg({ kind: 'ok', text: ok }); products.reload(); } catch (e) { setMsg({ kind: 'error', text: friendly(e) }); } finally { setBusy(false); }
@@ -50,25 +52,28 @@ export function AbonosPage() {
     if (chosen.length === 0) { setMsg({ kind: 'error', text: 'Elegí al menos una cantidad de viajes.' }); return; }
     const validDays = Number(days);
     if (!Number.isInteger(validDays) || validDays < 1 || validDays > 365) { setMsg({ kind: 'error', text: 'La vigencia tiene que ser de 1 a 365 días.' }); return; }
-    const existing = new Set((products.data ?? []).filter((p) => p.active).map((p) => `${pairKey(p.place_a, p.place_b, p.seat_class)}|${p.trips}`));
+    if (genDays.length === 0) { setMsg({ kind: 'error', text: 'Tildá al menos un tipo de día en el que valga el abono.' }); return; }
+    const daysKey = (d: DayType[]) => DAY_TYPES.filter((t) => d.includes(t)).join(',');
+    const existing = new Set((products.data ?? []).filter((p) => p.active).map((p) => `${pairKey(p.place_a, p.place_b, p.seat_class)}|${p.trips}|${daysKey(p.day_types)}`));
     const rows = (pairs.data ?? [])
       .filter((p) => !target || pairKey(p.place_a, p.place_b, p.seat_class) === target)
       .flatMap((p) => chosen.map((t) => ({
-        place_a: p.place_a, place_b: p.place_b, seat_class: p.seat_class, trips: t, valid_days: validDays, active: true,
+        place_a: p.place_a, place_b: p.place_b, seat_class: p.seat_class, trips: t, valid_days: validDays, active: true, day_types: genDays,
         price: roundPrice(Number(p.base_price) * t * (1 - Math.min(Math.max(Number(disc[t]) || 0, 0), 90) / 100))
       })))
-      .filter((r) => !existing.has(`${pairKey(r.place_a, r.place_b, r.seat_class)}|${r.trips}`));
+      .filter((r) => !existing.has(`${pairKey(r.place_a, r.place_b, r.seat_class)}|${r.trips}|${daysKey(r.day_types)}`));
     if (rows.length === 0) { setMsg({ kind: 'error', text: 'Esos abonos ya existen (o no hay tramos con tarifa).' }); return; }
     void run(async () => { must(await supabase.from('pass_products').insert(rows)); }, `Se crearon ${rows.length} abonos. Podés ajustar los precios en la lista.`);
   };
 
   // ---- lista / edición
-  const [edit, setEdit] = useState<Record<string, { price?: string; valid_days?: string }>>({});
+  const [edit, setEdit] = useState<Record<string, { price?: string; valid_days?: string; day_types?: DayType[] }>>({});
   const [pct, setPct] = useState('');
   const saveRow = (p: Product) => {
     const e = edit[p.id]; if (!e) return;
-    const patch = { price: e.price !== undefined ? Number(e.price) : p.price, valid_days: e.valid_days !== undefined ? Number(e.valid_days) : p.valid_days };
+    const patch = { price: e.price !== undefined ? Number(e.price) : p.price, valid_days: e.valid_days !== undefined ? Number(e.valid_days) : p.valid_days, day_types: e.day_types ?? p.day_types };
     if (!(patch.price >= 0) || !Number.isInteger(patch.valid_days) || patch.valid_days < 1) { setMsg({ kind: 'error', text: 'Revisá el precio y la vigencia.' }); return; }
+    if (patch.day_types.length === 0) { setMsg({ kind: 'error', text: 'Tildá al menos un tipo de día.' }); return; }
     void run(async () => { must(await supabase.from('pass_products').update(patch).eq('id', p.id)); setEdit(({ [p.id]: _, ...rest }) => rest); }, 'Abono actualizado.');
   };
   const toggle = (p: Product) => void run(async () => { must(await supabase.from('pass_products').update({ active: !p.active }).eq('id', p.id)); }, p.active ? 'Abono pausado.' : 'Abono activado.');
@@ -148,7 +153,7 @@ export function AbonosPage() {
             <label>Abono
               <select value={sellForm.product} onChange={(e) => setSellForm({ ...sellForm, product: e.target.value })}>
                 <option value="">Elegir...</option>
-                {sellable.map((p) => <option key={p.id} value={p.id}>{label(p)} · {p.trips} viajes · {formatMoney(Number(p.price))} · {p.valid_days} días</option>)}
+                {sellable.map((p) => <option key={p.id} value={p.id}>{label(p)} · {p.trips} viajes · {formatMoney(Number(p.price))} · {p.valid_days} días{daysTag(p.day_types)}</option>)}
               </select>
             </label>
             <div className="row">
@@ -173,7 +178,7 @@ export function AbonosPage() {
             <tbody>{(sold.data ?? []).map((p) => (
               <tr key={p.pass_id}>
                 <td>{p.holder_name}<br /><small className="muted">DNI {p.holder_dni}</small></td>
-                <td>{p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''}</td>
+                <td>{p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''}{daysTag(p.day_types)}</td>
                 <td><b>{p.trips_left}</b> / {p.trips_total}</td>
                 <td>{fmtDate(p.expires_at)}</td>
                 <td>{stateOf(p)}</td>
@@ -206,6 +211,17 @@ export function AbonosPage() {
                     </tr>
                   ))}</tbody>
                 </table></div>
+                <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+                  <legend>Días en que vale el abono</legend>
+                  <div className="row">
+                    {DAY_TYPES.map((t) => (
+                      <label key={t} title={DAY_TYPE_LABEL[t]} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={genDays.includes(t)}
+                          onChange={(e) => setGenDays(e.target.checked ? [...genDays, t] : genDays.filter((x) => x !== t))} />{DAY_TYPE_LETTER[t]} · {DAY_TYPE_LABEL[t]}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
                 <div className="row">
                   <label>Vigencia (días desde la compra)<input type="number" min={1} max={365} value={days} onChange={(e) => setDays(e.target.value)} /></label>
                   <button type="button" disabled={busy} onClick={generate}>Generar abonos</button>
@@ -223,7 +239,7 @@ export function AbonosPage() {
             <BulkBar bulk={bulk} one="abono" many="abonos" busy={busy} onDelete={removeSelected} />
             {products.loading ? <Loading /> : (products.data ?? []).length === 0 ? <p className="muted">Todavía no hay abonos.</p> : (
               <div className="table-wrap"><table>
-                <thead><tr><HeadCheck bulk={bulk} /><th>Tramo</th><th>Viajes</th><th>Precio</th><th>Días</th><th>Estado</th><th /></tr></thead>
+                <thead><tr><HeadCheck bulk={bulk} /><th>Tramo</th><th>Viajes</th><th>Precio</th><th>Vigencia (días)</th><th>Vale en</th><th>Estado</th><th /></tr></thead>
                 <tbody>{(products.data ?? []).map((p) => {
                   const e = edit[p.id];
                   return (
@@ -232,6 +248,19 @@ export function AbonosPage() {
                       <td>{label(p)}</td><td>{p.trips}</td>
                       <td><input type="number" min={0} aria-label="Precio" style={{ width: '7rem' }} value={e?.price ?? String(p.price)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, price: ev.target.value } })} /></td>
                       <td><input type="number" min={1} max={365} aria-label="Días de vigencia" style={{ width: '5rem' }} value={e?.valid_days ?? String(p.valid_days)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, valid_days: ev.target.value } })} /></td>
+                      <td>
+                        <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                          {DAY_TYPES.map((t) => {
+                            const cur = e?.day_types ?? p.day_types;
+                            return (
+                              <label key={t} title={DAY_TYPE_LABEL[t]} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                <input type="checkbox" style={{ width: 18, minHeight: 18 }} aria-label={DAY_TYPE_LABEL[t]} checked={cur.includes(t)}
+                                  onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, day_types: ev.target.checked ? [...cur, t] : cur.filter((x) => x !== t) } })} />{DAY_TYPE_LETTER[t]}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td>{p.active ? 'Activo' : 'Pausado'}</td>
                       <td className="row">
                         {e && <button type="button" disabled={busy} onClick={() => saveRow(p)}>Guardar</button>}

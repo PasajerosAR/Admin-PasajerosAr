@@ -1,3 +1,4 @@
+import { daysTag, type DayType } from '../../lib/dayType';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
@@ -28,7 +29,7 @@ interface SoldTicket {
   id: string; qr_code: string; seat_label: string; price: number; passenger_name: string; passenger_dni: string;
   email: string | null; from_stop_id: string; to_stop_id: string; ticket_type: TicketKind;
 }
-interface PassRow { pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null; trips_left: number; expires_at: string }
+interface PassRow { pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null; trips_left: number; expires_at: string; day_types: DayType[] }
 interface Sale { receiptByTicket?: Record<string, number>; sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method | 'complimentary'; receipt_number: number; channel: 'counter' | 'web'; created_at: string }
 
 export function VentanillaPage() {
@@ -326,7 +327,7 @@ export function VentanillaPage() {
                 <label>Abono
                   <select value={passId} onChange={(e) => setPassId(e.target.value)}>
                     <option value="">Elegir...</option>
-                    {(passes.data ?? []).map((p) => <option key={p.pass_id} value={p.pass_id}>{p.holder_name} · {p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''} · quedan {p.trips_left} · vence {new Date(p.expires_at).toLocaleDateString('es-AR')}</option>)}
+                    {(passes.data ?? []).map((p) => <option key={p.pass_id} value={p.pass_id}>{p.holder_name} · {p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''}{daysTag(p.day_types)} · quedan {p.trips_left} · vence {new Date(p.expires_at).toLocaleDateString('es-AR')}</option>)}
                   </select>
                 </label>
               )}

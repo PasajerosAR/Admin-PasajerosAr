@@ -11,6 +11,12 @@ export function dayTypeOf(d: Date): DayType {
   return wd === 0 ? 'sunday' : wd === 6 ? 'saturday' : 'weekday';
 }
 
+// " · H S D" cuando no vale los cuatro tipos de día (vacío si vale todos), para listas y menús
+export function daysTag(types: DayType[] | null | undefined): string {
+  if (!types || DAY_TYPES.every((t) => types.includes(t))) return '';
+  return ` · días ${DAY_TYPES.filter((t) => types.includes(t)).map((t) => DAY_TYPE_LETTER[t]).join(' ')}`;
+}
+
 export function dayTypesText(types: DayType[]): string {
   return DAY_TYPES.filter((t) => types.includes(t)).map((t) => DAY_TYPE_LABEL[t]).join(', ');
 }
