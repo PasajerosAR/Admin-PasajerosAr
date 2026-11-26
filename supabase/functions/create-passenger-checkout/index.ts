@@ -20,7 +20,7 @@ interface CheckoutOrder {
 
 interface Preference {
   id?: string;
-  init_point?: string;
+  sandbox_init_point?: string;
 }
 
 const publicErrors: Record<string, { message: string; status: number }> = {
@@ -141,8 +141,8 @@ Deno.serve(async (req) => {
       })
     });
 
-    if (!preference.id || !preference.init_point) throw new Error('MERCADOPAGO_TEST_CHECKOUT_URL_MISSING');
-    const checkoutUrl = new URL(preference.init_point);
+    if (!preference.id || !preference.sandbox_init_point) throw new Error('MERCADOPAGO_TEST_CHECKOUT_URL_MISSING');
+    const checkoutUrl = new URL(preference.sandbox_init_point);
     const checkoutHost = checkoutUrl.hostname.toLowerCase();
     const trustedCheckoutHost = checkoutHost === 'mercadopago.com.ar'
       || checkoutHost.endsWith('.mercadopago.com.ar')

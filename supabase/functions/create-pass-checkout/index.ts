@@ -3,7 +3,7 @@ import {
 } from '../_shared/mercadopago.ts';
 
 interface PassOrder { order_id: string; company_id: string; price: number; title: string; expires_at: string }
-interface Preference { id?: string; init_point?: string }
+interface Preference { id?: string; sandbox_init_point?: string }
 
 const publicErrors: Record<string, { message: string; status: number }> = {
   PASSENGER_PROFILE_REQUIRED: { message: 'Completá tu perfil de pasajero antes de comprar.', status: 400 },
@@ -65,8 +65,8 @@ Deno.serve(async (req) => {
         payment_methods: { excluded_payment_types: [{ id: 'ticket' }] }
       })
     });
-    if (!preference.id || !preference.init_point) throw new Error('MERCADOPAGO_TEST_CHECKOUT_URL_MISSING');
-    const checkoutUrl = new URL(preference.init_point);
+    if (!preference.id || !preference.sandbox_init_point) throw new Error('MERCADOPAGO_TEST_CHECKOUT_URL_MISSING');
+    const checkoutUrl = new URL(preference.sandbox_init_point);
     const host = checkoutUrl.hostname.toLowerCase();
     const trusted = host === 'mercadopago.com.ar' || host.endsWith('.mercadopago.com.ar')
       || host === 'mercadopago.com' || host.endsWith('.mercadopago.com');
