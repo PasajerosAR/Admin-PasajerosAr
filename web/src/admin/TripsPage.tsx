@@ -69,7 +69,20 @@ export function TripsPage() {
     else { setMsg({ kind: 'ok', text: ok }); trips.reload(); }
   };
 
-  const generate = () => run(() => supabase.rpc('generate_trips', { p_date: date, p_day_type: dayType }), `Viajes generados para ${DAY_TYPE_LABEL[dayType].toLowerCase()}. Todavía no están publicados: revisalos y tocá "Publicar".`);
+  const generate = async () => {
+    // si el día ya tiene viajes de otro tipo (ej. feriado y ahora hábil), se avisa y se reemplazan
+    const { data: preview, error } = await supabase.rpc('generate_trips_preview', { p_date: date, p_day_type: dayType });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    const other = Number(preview?.other_type ?? 0);
+    const blocked = Number(preview?.blocked ?? 0);
+    const names = ((preview?.types ?? []) as DayType[]).map((t) => DAY_TYPE_LABEL[t]?.toLowerCase() ?? t).join(' y ');
+    if (blocked > 0) {
+      setMsg({ kind: 'error', text: `Ese día ya tiene ${other} viajes generados como ${names} y ${blocked} no se pueden reemplazar porque tienen ventas, conductor o ya iniciaron.` });
+      return;
+    }
+    if (other > 0 && !window.confirm(`Ese día ya tiene ${other} viajes generados como ${names}. Se van a borrar y reemplazar por los de ${DAY_TYPE_LABEL[dayType].toLowerCase()}. ¿Continuar?`)) return;
+    await run(() => supabase.rpc('generate_trips', { p_date: date, p_day_type: dayType, p_replace: other > 0 }), `Viajes generados para ${DAY_TYPE_LABEL[dayType].toLowerCase()}. Todavía no están publicados: revisalos y tocá "Publicar".`);
+  };
   const publish = async () => {
     if (!window.confirm(`¿Publicar ${drafts} viajes del día? Desde ese momento los pasajeros pueden verlos y comprar.`)) return;
     const { data, error } = await supabase.rpc('publish_trips', { p_date: date });
