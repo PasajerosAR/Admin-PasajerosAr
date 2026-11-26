@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { FilterBox, Loading, Notice, matches } from '../ui';
+import { FilterBox, Loading, Notice, PageHead, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Profile } from '../lib/types';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
@@ -84,43 +84,45 @@ export function DriversPage() {
 
   return (
     <>
-      <h1>Conductores</h1>
+      <PageHead title="Conductores" />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && (
-        <form className="card stack" onSubmit={create}>
-          <h2>Agregar conductor</h2>
-          <div className="row">
+        <form className="card" onSubmit={create}>
+          <div className="card-head"><h2>Agregar conductor</h2></div>
+          <div className="form-grid">
             <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
             <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
             <label>DNI<input value={form.dni} onChange={set('dni')} inputMode="numeric" /></label>
             <label>Teléfono<input value={form.phone} onChange={set('phone')} inputMode="tel" /></label>
-          </div>
-          <div className="row">
             <label>Correo (usuario)<input type="email" value={form.email} onChange={set('email')} required /></label>
             <label>Contraseña inicial<input type="text" minLength={8} value={form.password} onChange={set('password')} required /></label>
-            <button type="submit" disabled={busy}>{busy ? 'Creando...' : 'Crear conductor'}</button>
+            <div className="form-actions"><button type="submit" disabled={busy}>{busy ? 'Creando...' : 'Crear conductor'}</button></div>
           </div>
         </form>
       )}
-      <div className="card table-wrap">
-        <FilterBox value={q} onChange={setQ} placeholder="Buscar por nombre, legajo o DNI" />
+      <div className="card list-card">
+        <div className="list-head">
+          <FilterBox value={q} onChange={setQ} placeholder="Buscar por nombre, legajo o DNI" />
+        </div>
         {canEdit && <BulkBar bulk={bulk} one="conductor" many="conductores" busy={bulkBusy} onDelete={() => void removeSelected()} />}
-        {drivers.loading ? <Loading /> : (
-          <table>
-            <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
-            <tbody>
-              {visible.length === 0 && <tr><td colSpan={7} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
-              {visible.map((d) => (
-                <tr key={d.id}>
-                  {canEdit && <RowCheck bulk={bulk} id={d.id} />}
-                  <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
-                  <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
-                  <td>{canEdit && <div className="row"><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></div>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <div className="table-wrap">
+          {drivers.loading ? <Loading /> : (
+            <table>
+              <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+              <tbody>
+                {visible.length === 0 && <tr><td colSpan={7} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
+                {visible.map((d) => (
+                  <tr key={d.id}>
+                    {canEdit && <RowCheck bulk={bulk} id={d.id} />}
+                    <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
+                    <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
+                    <td className="td-actions">{canEdit && <><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </>
   );

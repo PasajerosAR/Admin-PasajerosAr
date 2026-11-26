@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { FilterBox, Loading, Notice, matches } from '../ui';
+import { FilterBox, Loading, Notice, PageHead, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Company, Locality, Route, RouteStop } from '../lib/types';
 import type { Maneuver } from '../lib/turnGuide';
@@ -125,10 +125,7 @@ export function RoutesPage() {
 
   return (
     <>
-      <div className="row page-heading" style={{ alignItems: 'center' }}>
-        <h1>Recorridos</h1>
-        {canEdit && <button onClick={() => open(null)}>+ Nuevo recorrido</button>}
-      </div>
+      <PageHead title="Recorridos" actions={canEdit && <button onClick={() => open(null)}>+ Nuevo recorrido</button>} />
       {!canEdit && <p className="muted">Estos son los recorridos de tu empresa; los carga la plataforma. Si necesitás uno nuevo o una corrección, pedilo al administrador general.</p>}
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice } from '../../ui';
+import { Loading, Notice, PageHead } from '../../ui';
 import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
 import { DAY_TYPES, DAY_TYPE_LABEL, DAY_TYPE_LETTER, daysTag, type DayType } from '../../lib/dayType';
@@ -150,8 +150,7 @@ export function AbonosPage() {
 
   return (
     <>
-      <h1>Abonos</h1>
-      <p className="muted">Paquetes de viajes por tramo (en ambos sentidos). Se venden acá y se usan en la ventanilla eligiendo “Abono” como forma de pago.</p>
+      <PageHead title="Abonos" subtitle="Paquetes de viajes por tramo (en ambos sentidos). Se venden acá y se usan en la ventanilla eligiendo “Abono” como forma de pago." />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {[pairs.error, products.error, sold.error].filter(Boolean).map((e) => <Notice key={e}>{friendly(new Error(e as string))}</Notice>)}
 

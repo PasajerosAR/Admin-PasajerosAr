@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { FilterBox, Loading, Notice, PageHead } from '../ui';
 import { fold } from '../lib/text';
 import type { Company } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
@@ -137,32 +137,31 @@ export function CompaniesPage() {
 
   return (
     <>
-      <h1>Empresas</h1>
+      <PageHead title="Empresas" />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canCreate && (
-        <form className="card stack" onSubmit={create}>
-          <h2>Nueva empresa</h2>
-          <div className="row">
+        <form className="card" onSubmit={create}>
+          <div className="card-head"><h2>Nueva empresa</h2></div>
+          <div className="form-grid">
             <label>Nombre de la empresa<input value={form.company_name} onChange={set('company_name')} required /></label>
             <label>Administrador: nombre completo<input value={form.full_name} onChange={set('full_name')} required /></label>
             <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
-          </div>
-          <div className="row">
             <label>Correo<input type="email" value={form.email} onChange={set('email')} required /></label>
             <label>Contraseña inicial<input type="text" minLength={8} value={form.password} onChange={set('password')} required /></label>
+            <div className="span-12"><FeatureChecks blocked={newBlocked} onChange={setNewBlocked} /></div>
+            <div className="form-actions"><button type="submit" disabled={busy}>Crear empresa</button></div>
           </div>
-          <FeatureChecks blocked={newBlocked} onChange={setNewBlocked} />
-          <button type="submit" disabled={busy} style={{ alignSelf: 'flex-start' }}>Crear empresa</button>
         </form>
       )}
-      <div className="card stack">
-        <div className="row">
-          <label>Buscar empresa<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nombre" /></label>
-          <label>Estado
+      <div className="card list-card">
+        <div className="list-head">
+          <FilterBox value={search} onChange={setSearch} placeholder="Buscar empresa" />
+          <label className="inline">Estado
             <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
               <option value="all">Todas</option><option value="active">Activas</option><option value="suspended">Suspendidas</option>
             </select>
           </label>
+          <span className="list-head-spacer" />
         </div>
         {companies.loading ? <Loading /> : (
           <div className="table-wrap">
@@ -176,7 +175,7 @@ export function CompaniesPage() {
                     <td>{(c.blocked_features ?? []).length === 0 ? <span className="pill ok">Todas</span> : <span className="pill warn">{(c.blocked_features ?? []).length} bloqueada(s)</span>}</td>
                     <td>{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
                     <td>{c.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</td>
-                    <td><button className="secondary compact" onClick={() => { setSelectedId(selectedId === c.id ? null : c.id); setEditing(null); }}>{selectedId === c.id ? 'Cerrar ficha' : 'Abrir ficha'}</button></td>
+                    <td className="td-actions"><button className="secondary compact" onClick={() => { setSelectedId(selectedId === c.id ? null : c.id); setEditing(null); }}>{selectedId === c.id ? 'Cerrar ficha' : 'Abrir ficha'}</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -186,49 +185,64 @@ export function CompaniesPage() {
       </div>
 
       {selected && (
-        <div className="card stack company-file">
-          <h2>{selected.name} {selected.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}</h2>
-          <p className="muted">Alta: {new Date(selected.created_at).toLocaleDateString('es-AR')}</p>
-
-          <h3>Logo</h3>
-          <div className="row" style={{ alignItems: 'center' }}>
-            {selected.logo_path && <img
-              src={supabase.storage.from('company-logos').getPublicUrl(selected.logo_path).data.publicUrl}
-              alt={`Logo de ${selected.name}`} style={{ width: 96, height: 56, objectFit: 'contain' }} />}
-            {canEdit && <label className="file-pick">
-              <span className="secondary button-like">{selected.logo_path ? 'Cambiar imagen' : 'Subir imagen'}</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploadingLogoFor === selected.id}
-                onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void uploadLogo(selected, file); }} />
-            </label>}
-            {uploadingLogoFor === selected.id && <span className="muted">Subiendo...</span>}
+        <div className="card company-file">
+          <div className="company-file-head">
+            <div className="company-file-title">
+              <h2>{selected.name}</h2>
+              {selected.active ? <span className="pill ok">Activa</span> : <span className="pill warn">Suspendida</span>}
+              <span className="muted">Alta: {new Date(selected.created_at).toLocaleDateString('es-AR')}</span>
+            </div>
           </div>
 
-          <h3>Funciones</h3>
-          {canCreate ? (
-            <>
-              <FeatureChecks blocked={editing?.id === selected.id ? editing.blocked : selected.blocked_features ?? []}
-                onChange={(next) => setEditing({ id: selected.id, blocked: next })} />
-              <div className="row">
-                <button type="button" disabled={busy || editing?.id !== selected.id} onClick={saveFeatures}>Guardar funciones</button>
+          <div className="company-file-grid">
+            <div className="company-file-col">
+              <h3>Logo</h3>
+              <div className="company-logo-row">
+                {selected.logo_path
+                  ? <img className="company-logo-preview"
+                    src={supabase.storage.from('company-logos').getPublicUrl(selected.logo_path).data.publicUrl}
+                    alt={`Logo de ${selected.name}`} />
+                  : <div className="company-logo-empty">Sin logo</div>}
+                {canEdit && <label className="file-pick">
+                  <span className="secondary button-like compact">{selected.logo_path ? 'Cambiar imagen' : 'Subir imagen'}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploadingLogoFor === selected.id}
+                    onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; void uploadLogo(selected, file); }} />
+                </label>}
+                {uploadingLogoFor === selected.id && <span className="muted">Subiendo...</span>}
               </div>
-            </>
-          ) : (
-            <div className="pill-list">
-              {(selected.blocked_features ?? []).length === 0
-                ? <span className="pill ok">Todas habilitadas</span>
-                : (selected.blocked_features ?? []).map((k) => <span key={k} className="pill warn">Sin {featureLabel(k).toLowerCase()}</span>)}
             </div>
-          )}
 
-          {canEdit && (
-            <>
-              <h3>Estado</h3>
-              <div className="row">
-                <button className="secondary" onClick={() => toggle(selected)}>{selected.active ? 'Suspender' : 'Activar'}</button>
-                <button className="danger" onClick={async () => { await remove(selected); }}>Eliminar empresa</button>
+            <div className="company-file-col">
+              <div className="company-features-head">
+                <h3>Funciones</h3>
+                {canCreate && (
+                  <button type="button" className="compact" disabled={busy || editing?.id !== selected.id} onClick={saveFeatures}>
+                    Guardar funciones
+                  </button>
+                )}
               </div>
-            </>
-          )}
+              {canCreate ? (
+                <FeatureChecks blocked={editing?.id === selected.id ? editing.blocked : selected.blocked_features ?? []}
+                  onChange={(next) => setEditing({ id: selected.id, blocked: next })} />
+              ) : (
+                <div className="pill-list">
+                  {(selected.blocked_features ?? []).length === 0
+                    ? <span className="pill ok">Todas habilitadas</span>
+                    : (selected.blocked_features ?? []).map((k) => <span key={k} className="pill warn">Sin {featureLabel(k).toLowerCase()}</span>)}
+                </div>
+              )}
+            </div>
+
+            {canEdit && (
+              <div className="company-file-col company-file-actions">
+                <h3>Estado</h3>
+                <div className="company-state-btns">
+                  <button className="secondary compact" onClick={() => toggle(selected)}>{selected.active ? 'Suspender' : 'Activar'}</button>
+                  <button className="danger compact" onClick={async () => { await remove(selected); }}>Eliminar empresa</button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
 import { supabase } from '../../lib/supabase';
-import { Loading, Notice, todayLocal } from '../../ui';
+import { Loading, Notice, PageHead, todayLocal } from '../../ui';
 
 interface ReportRow {
   company_id?: string;
@@ -82,9 +82,9 @@ export function SalesReportsPage() {
 
   return (
     <>
-      <h1>Reportes de ventas</h1>
-      <div className="card">
-        <div className="row operation-filters">
+      <PageHead title="Reportes de ventas" />
+      <div className="toolbar">
+        <div className="filters">
           <label>Desde<input type="date" value={from} onChange={(e) => setRange(e.target.value, to)} /></label>
           <label>Hasta<input type="date" value={to} onChange={(e) => setRange(from, e.target.value)} /></label>
           <button className="secondary" onClick={exportCsv} disabled={report.loading || rows.length === 0}>Descargar CSV</button>
@@ -94,15 +94,15 @@ export function SalesReportsPage() {
       {report.error && <Notice kind="error">{friendly(report.error)}</Notice>}
       {report.loading ? <Loading /> : (
         <>
-          <div className="row">
-            <section className="card stack"><span className="muted">Ventas</span><strong style={{ fontSize: 24 }}>{totals.sales}</strong></section>
-            <section className="card stack"><span className="muted">Pasajes</span><strong style={{ fontSize: 24 }}>{totals.tickets}</strong></section>
-            <section className="card stack"><span className="muted">Importe</span><strong style={{ fontSize: 24 }}>${totals.amount.toFixed(2)}</strong></section>
-            <section className="card stack"><span className="muted">Cortesías</span><strong style={{ fontSize: 24 }}>{totals.complimentary}</strong></section>
-            <section className="card stack"><span className="muted">Ventas devueltas</span><strong style={{ fontSize: 24 }}>{totals.refunds}</strong></section>
+          <div className="stats">
+            <div className="stat"><span>Ventas</span><b>{totals.sales}</b></div>
+            <div className="stat"><span>Pasajes</span><b>{totals.tickets}</b></div>
+            <div className="stat"><span>Importe</span><b>${totals.amount.toFixed(2)}</b></div>
+            <div className="stat"><span>Cortesías</span><b>{totals.complimentary}</b></div>
+            <div className="stat"><span>Ventas devueltas</span><b>{totals.refunds}</b></div>
           </div>
-          <div className="card table-wrap">
-            <table>
+          <div className="card list-card">
+            <div className="table-wrap"><table>
               <thead><tr>{global && <th>Empresa</th>}<th>Fecha</th><th>Medio de pago</th><th>Ventas</th>{global && <th>Pasajes</th>}<th>Importe</th><th>Devoluciones</th><th>Cortesías</th></tr></thead>
               <tbody>
                 {rows.length === 0 && <tr><td colSpan={global ? 8 : 7} className="muted">No hay ventas en el período elegido.</td></tr>}
@@ -119,7 +119,7 @@ export function SalesReportsPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </>
       )}

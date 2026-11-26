@@ -116,8 +116,10 @@ export function AdminLayout() {
   const q = fold(query);
   const shown = q ? links.filter(([, label]) => fold(label).includes(q)) : links;
   // sección actual: el enlace más específico que coincide con la ruta
-  const current = [...links].filter(([to, , end]) => (end ? pathname === to : pathname === to || pathname.startsWith(to + '/')))
-    .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ?? title;
+  const currentLink = [...links].filter(([to, , end]) => (end ? pathname === to : pathname === to || pathname.startsWith(to + '/')))
+    .sort((a, b) => b[0].length - a[0].length)[0];
+  const current = currentLink?.[1] ?? title;
+  const currentGroup = groups[currentLink?.[0] ?? ''] ?? '';
   return (
     <div className="admin">
       <nav id="admin-nav" className={menuOpen ? 'open' : ''} aria-label="Menú del panel">
@@ -138,7 +140,9 @@ export function AdminLayout() {
             <svg viewBox="0 0 24 24" aria-hidden="true">{menuOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
             Menú
           </button>
-          <span className="admin-topbar-title">{current}</span>
+          <span className="admin-topbar-title">
+            {currentGroup && currentGroup !== current ? <>{currentGroup} <span aria-hidden="true">/</span> <b>{current}</b></> : <b>{current}</b>}
+          </span>
         </header>
         <ProfileMenu />
         <main>

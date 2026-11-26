@@ -37,10 +37,14 @@ export function ProfileMenu() {
       <button type="button" className="profile-avatar" aria-label="Mi perfil" aria-expanded={open} onClick={() => setOpen((v) => !v)}>{initials || '?'}</button>
       {open && (
         <div className="profile-panel" role="dialog" aria-label="Mis datos">
-          <h3>Mis datos</h3>
+          <div className="profile-head">
+            <span className="profile-head-avatar" aria-hidden="true">{initials || '?'}</span>
+            <div>
+              <h3>{profile.full_name}</h3>
+              <p className="muted">{ROLE[profile.role] ?? profile.role}</p>
+            </div>
+          </div>
           <dl>
-            <dt>Nombre</dt><dd>{profile.full_name}</dd>
-            <dt>Rol</dt><dd>{ROLE[profile.role] ?? profile.role}</dd>
             <dt>Legajo</dt><dd>{profile.legajo ?? 'Sin asignar'}</dd>
             {profile.dni && <><dt>DNI</dt><dd>{profile.dni}</dd></>}
             {profile.phone && <><dt>Teléfono</dt><dd>{profile.phone}</dd></>}

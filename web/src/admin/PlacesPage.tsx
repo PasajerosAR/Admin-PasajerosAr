@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { Loading, Notice, PageHead } from '../ui';
 import type { Locality } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
@@ -51,23 +51,22 @@ export function PlacesPage() {
 
   return (
     <>
-      <h1>Localidades</h1>
-      <p className="muted">Son los lugares que el pasajero elige como origen y destino. Cada parada de un recorrido pertenece a una localidad; una localidad intermedia aparece como lugar por donde el servicio pasa.</p>
+      <PageHead title="Localidades" subtitle="Son los lugares que el pasajero elige como origen y destino. Cada parada de un recorrido pertenece a una localidad; una localidad intermedia aparece como lugar por donde el servicio pasa." />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && (
-        <form className="card stack" onSubmit={save}>
-          <h2>{editing ? 'Editar localidad' : 'Nueva localidad'}</h2>
-          <div className="row" style={{ alignItems: 'flex-end' }}>
+        <form className="card" onSubmit={save}>
+          <div className="card-head"><h2>{editing ? 'Editar localidad' : 'Nueva localidad'}</h2></div>
+          <div className="form-grid">
             <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Paraná" /></label>
             <label>Provincia<input value={province} onChange={(e) => setProvince(e.target.value)} placeholder="Entre Ríos" /></label>
-            <button type="submit" style={{ flex: '0 0 auto' }}>{editing ? 'Guardar' : 'Agregar'}</button>
-            {editing && <button type="button" className="secondary" style={{ flex: '0 0 auto' }} onClick={reset}>Cancelar</button>}
+            <div className="form-actions"><button type="submit">{editing ? 'Guardar' : 'Agregar'}</button>
+            {editing && <button type="button" className="secondary" onClick={reset}>Cancelar</button>}</div>
           </div>
         </form>
       )}
-      <div className="card table-wrap">
+      <div className="card list-card">
         {canEdit && <BulkBar bulk={bulk} one="localidad" many="localidades" onDelete={() => void removeSelected()} />}
-        {places.loading ? <Loading /> : (
+        <div className="table-wrap">{places.loading ? <Loading /> : (
           <table>
             <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Localidad</th><th>Provincia</th><th>Paradas</th>{canEdit && <th />}</tr></thead>
             <tbody>
@@ -84,7 +83,7 @@ export function PlacesPage() {
               ))}
             </tbody>
           </table>
-        )}
+        )}</div>
       </div>
     </>
   );

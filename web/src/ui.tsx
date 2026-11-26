@@ -37,7 +37,7 @@ export function TimeInput({ value, onChange, required, ariaLabel }: { value: str
   };
   const valid = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
   return (
-    <input type="text" inputMode="numeric" placeholder="HH:MM" maxLength={5} pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Hora en formato 24 hs, por ejemplo 21:30"
+    <input type="text" className="time-input" inputMode="numeric" placeholder="HH:MM" maxLength={5} pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Hora en formato 24 hs, por ejemplo 21:30"
       aria-label={ariaLabel} required={required} value={value} onChange={(e) => onChange(clean(e.target.value))}
       onBlur={() => { if (value && !valid(value)) onChange(''); }} />
   );
@@ -52,6 +52,19 @@ export function todayLocal(): string {
 /** Caja de búsqueda para listados: filtra por cualquier texto de la fila. */
 export function FilterBox({ value, onChange, placeholder = 'Buscar...' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
   return <input className="filter-box" type="search" placeholder={placeholder} aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />;
+}
+
+/** Encabezado de página: título (+ subtítulo) a la izquierda, acciones a la derecha. */
+export function PageHead({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+  return (
+    <header className="page-head">
+      <div className="page-head-text">
+        <h1>{title}</h1>
+        {subtitle && <p className="page-sub">{subtitle}</p>}
+      </div>
+      {actions && <div className="page-actions">{actions}</div>}
+    </header>
+  );
 }
 export const matches = (needle: string, ...fields: (string | number | null | undefined)[]): boolean => {
   const n = fold(needle);

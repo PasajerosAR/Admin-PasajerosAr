@@ -33,7 +33,7 @@ export function FirstSteps() {
   if (steps.every((s) => s[2])) return null;
   return (
     <div className="card first-steps">
-      <h2>Primeros pasos</h2>
+      <div className="card-head"><h2>Primeros pasos</h2></div>
       <ol>
         {steps.map(([label, to, ok]) => (
           <li key={to} className={ok ? 'done' : ''}>{ok ? '✓ ' : ''}{ok ? label : <Link to={to}>{label}</Link>}</li>

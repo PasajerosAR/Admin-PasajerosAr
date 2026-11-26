@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
-import { Loading, Notice } from '../ui';
+import { Loading, Notice, PageHead } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import {
   addFloor, cellAt, copyCell, fromDbRows, newDraft, paint, prefixedSeatLabel, removeFloor, renumber, resizeFloor,
@@ -119,10 +119,8 @@ export function LayoutEditorPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: 'center' }}>
-        <h1>{isNew ? 'Nueva disposición' : `${name} - versión ${version}`}</h1>
-        {canEdit && <button onClick={save} disabled={saving}>{saving ? 'Guardando...' : locked ? 'Guardar como versión nueva' : 'Guardar'}</button>}
-      </div>
+      <PageHead title={isNew ? 'Nueva disposición' : `${name} - versión ${version}`}
+        actions={canEdit && <button onClick={save} disabled={saving}>{saving ? 'Guardando...' : locked ? 'Guardar como versión nueva' : 'Guardar'}</button>} />
       {locked && <Notice kind="warn">Esta disposición está en uso por viajes. Al guardar se crea una versión nueva y esta queda sin cambios. Después asignala a los vehículos desde Flota.</Notice>}
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 
@@ -194,34 +192,36 @@ export function LayoutEditorPage() {
 
         <div className="side">
           <section className="card">
-            <h2>Resumen</h2>
+            <div className="card-head"><h2>Resumen</h2></div>
             <div style={{ fontSize: 32, fontWeight: 700 }}>{sum.seats} <span className="muted">asientos</span></div>
             <p className="muted">Calculado desde la grilla. {sum.accessible} accesibles, {sum.blocked} bloqueados, {sum.unusable} no utilizables.</p>
           </section>
           {canEdit && (
-            <section className="card stack" aria-label="Asiento seleccionado">
-              <h2>Asiento seleccionado</h2>
-              {sel && sel.kind === 'seat' ? (
-                <>
-                  <label>Número o etiqueta<input value={sel.label ?? ''} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { label: e.target.value }))} /></label>
-                  <div className="row">
-                    <button className="secondary" onClick={() => applySeatPrefix('V')}>Ventana (V)</button>
-                    <button className="secondary" onClick={() => applySeatPrefix('P')}>Pasillo (P)</button>
-                  </div>
-                  <label>Categoría del asiento
-                    <select value={sel.seat_class} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { seat_class: e.target.value }))}>
-                      {['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'].map((seatClass) => <option key={seatClass} value={seatClass}>{seatClass}</option>)}
-                    </select>
-                  </label>
-                  {(['accessible', 'blocked', 'unusable'] as const).map((k) => (
-                    <label key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={sel[k]} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { [k]: e.target.checked }))} />
-                      {k === 'accessible' ? 'Accesible (movilidad reducida)' : k === 'blocked' ? 'Bloqueado por la empresa' : 'No utilizable'}
+            <section className="card" aria-label="Asiento seleccionado">
+              <div className="card-head"><h2>Asiento seleccionado</h2></div>
+              <div className="stack">
+                {sel && sel.kind === 'seat' ? (
+                  <>
+                    <label>Número o etiqueta<input value={sel.label ?? ''} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { label: e.target.value }))} /></label>
+                    <div className="row">
+                      <button className="secondary" onClick={() => applySeatPrefix('V')}>Ventana (V)</button>
+                      <button className="secondary" onClick={() => applySeatPrefix('P')}>Pasillo (P)</button>
+                    </div>
+                    <label>Categoría del asiento
+                      <select value={sel.seat_class} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { seat_class: e.target.value }))}>
+                        {['Común', 'Semicama', 'Cama', 'Premium', 'Cama premium'].map((seatClass) => <option key={seatClass} value={seatClass}>{seatClass}</option>)}
+                      </select>
                     </label>
-                  ))}
-                  {auto && <p className="muted">Con numeración automática, el número se vuelve a calcular al editar la grilla. Desmarcala para usar números propios.</p>}
-                </>
-              ) : <p className="muted">Usá la herramienta "Seleccionar asiento" y tocá un asiento para editarlo.</p>}
+                    {(['accessible', 'blocked', 'unusable'] as const).map((k) => (
+                      <label key={k} className="inline">
+                        <input type="checkbox" checked={sel[k]} onChange={(e) => setDraft(updateSeat(draft, sel.floor, sel.row, sel.col, { [k]: e.target.checked }))} />
+                        {k === 'accessible' ? 'Accesible (movilidad reducida)' : k === 'blocked' ? 'Bloqueado por la empresa' : 'No utilizable'}
+                      </label>
+                    ))}
+                    {auto && <p className="muted">Con numeración automática, el número se vuelve a calcular al editar la grilla. Desmarcala para usar números propios.</p>}
+                  </>
+                ) : <p className="muted">Usá la herramienta "Seleccionar asiento" y tocá un asiento para editarlo.</p>}
+              </div>
             </section>
           )}
         </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, formatDateTime, formatTime, todayLocal } from '../../ui';
+import { Loading, Notice, PageHead, formatDateTime, formatTime, todayLocal } from '../../ui';
 import { fold } from '../../lib/text';
 import type { PaymentMethod, SaleTicket } from '../../lib/types';
 import { PAYMENT_METHOD_LABEL, TICKET_STATUS_LABEL } from '../../lib/types';
@@ -102,7 +102,7 @@ export function TicketsPage() {
 
   return (
     <>
-      <h1>Pasajes</h1>
+      <PageHead title="Pasajes" />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 
       {cancellingId && (
@@ -113,8 +113,7 @@ export function TicketsPage() {
         />
       )}
 
-      <div className="card">
-        <div className="row operation-filters">
+      <div className="toolbar filters">
           <label>
             Desde
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -148,13 +147,12 @@ export function TicketsPage() {
             <input placeholder="nombre, DNI o código QR"
               value={search} onChange={(e) => setSearch(e.target.value)} />
           </label>
-        </div>
       </div>
 
-      <div className="card table-wrap">
-        {tickets.loading ? <Loading /> : (
+      <div className="card list-card">
+        <div className="table-wrap">{tickets.loading ? <Loading /> : (
           <>
-            <p className="muted" style={{ marginBottom: 8 }}>
+            <p className="list-foot">
               {filtered.length} pasaje{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
             </p>
             <table>
@@ -217,10 +215,9 @@ export function TicketsPage() {
                       )}
                     </td>
                     <td>
-                      {t.status !== 'cancelled' && <button className="secondary" style={{ fontSize: 12, minHeight: 32, padding: '0 10px', marginRight: 6 }} onClick={() => void reprint(t)}>Imprimir</button>}
+                      {t.status !== 'cancelled' && <button className="secondary" onClick={() => void reprint(t)}>Imprimir</button>}
                       {t.status === 'valid' && (profile?.role === 'company_admin' || profile?.role === 'seller') && (
-                        <button className="danger" style={{ fontSize: 12, minHeight: 32, padding: '0 10px' }}
-                          onClick={() => setCancellingId(t.id)}>
+                        <button className="danger" onClick={() => setCancellingId(t.id)}>
                           Cancelar
                         </button>
                       )}
@@ -230,7 +227,7 @@ export function TicketsPage() {
               </tbody>
             </table>
           </>
-        )}
+        )}</div>
       </div>
     </>
   );

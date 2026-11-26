@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { Loading, Notice, PageHead } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { SeatLayout } from '../lib/types';
 
@@ -96,82 +96,83 @@ export function LayoutsPage() {
 
   return (
     <>
-      <div className="row" style={{ alignItems: 'center' }}>
-        <h1>Disposiciones de asientos</h1>
-        {canEdit && <Link to="/admin/disposiciones/nueva"><button>Nueva disposición</button></Link>}
-      </div>
+      <PageHead title="Disposiciones de asientos" actions={canEdit && <Link to="/admin/disposiciones/nueva"><button>Nueva disposición</button></Link>} />
       {layouts.error && <Notice>{layouts.error}</Notice>}
       {caps.error && <Notice>{caps.error}</Notice>}
       {vehicles.error && <Notice>{vehicles.error}</Notice>}
       {config.error && <Notice>{config.error}</Notice>}
       {actionMsg && <Notice kind={actionMsg.kind}>{actionMsg.text}</Notice>}
       {pendingDelete && (
-        <section className="card stack" role="region" aria-labelledby="delete-layout-title">
-          <h2 id="delete-layout-title">Eliminar {pendingDelete.name} · v{pendingDelete.version}</h2>
-          {assignedVehiclesOf(pendingDelete.id).length > 0 ? (
-            <>
-              <p className="muted" style={{ margin: 0 }}>
-                {assignedVehiclesOf(pendingDelete.id).length} {assignedVehiclesOf(pendingDelete.id).length === 1 ? 'unidad usa' : 'unidades usan'} esta disposición. Elegí otra disposición con asientos o creá una copia; no se dejarán unidades sin plano.
-                {pendingDelete.locked_at && ' Los viajes anteriores conservarán su plano y esta disposición se mantendrá como histórico.'}
+        <section className="card" role="region" aria-labelledby="delete-layout-title">
+          <div className="card-head"><h2 id="delete-layout-title">Eliminar {pendingDelete.name} · v{pendingDelete.version}</h2></div>
+          <div className="form-grid">
+            {assignedVehiclesOf(pendingDelete.id).length > 0 ? (
+              <>
+                <p className="muted">
+                  {assignedVehiclesOf(pendingDelete.id).length} {assignedVehiclesOf(pendingDelete.id).length === 1 ? 'unidad usa' : 'unidades usan'} esta disposición. Elegí otra disposición con asientos o creá una copia; no se dejarán unidades sin plano.
+                  {pendingDelete.locked_at && ' Los viajes anteriores conservarán su plano y esta disposición se mantendrá como histórico.'}
+                </p>
+                <label className="inline span-12">
+                  <input type="radio" name="layout-replacement" checked={!createCopy} onChange={() => setCreateCopy(false)} />
+                  Reasignar a una disposición existente
+                </label>
+                <label className="span-6">
+                  <select aria-label="Disposición de reemplazo" value={replacementId} disabled={createCopy} onChange={(event) => setReplacementId(event.target.value)}>
+                    <option value="">Elegir disposición...</option>
+                    {(layouts.data ?? []).filter((layout) => layout.id !== pendingDelete.id && seatsOf(layout.id) > 0).map((layout) => (
+                      <option key={layout.id} value={layout.id}>{layout.name} (v{layout.version})</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="inline span-12">
+                  <input type="radio" name="layout-replacement" checked={createCopy} onChange={() => setCreateCopy(true)} />
+                  Crear una copia de esta disposición y asignarla a las unidades
+                </label>
+              </>
+            ) : (
+              <p className="muted">
+                No hay unidades asignadas.
+                {pendingDelete.locked_at
+                  ? ' No puede eliminarse porque hay viajes históricos asociados.'
+                  : ' Se borrará el plano guardado.'}
               </p>
-              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <input type="radio" name="layout-replacement" checked={!createCopy} onChange={() => setCreateCopy(false)} style={{ width: 18, minHeight: 18 }} />
-                Reasignar a una disposición existente
-              </label>
-              <select aria-label="Disposición de reemplazo" value={replacementId} disabled={createCopy} onChange={(event) => setReplacementId(event.target.value)}>
-                <option value="">Elegir disposición...</option>
-                {(layouts.data ?? []).filter((layout) => layout.id !== pendingDelete.id && seatsOf(layout.id) > 0).map((layout) => (
-                  <option key={layout.id} value={layout.id}>{layout.name} (v{layout.version})</option>
-                ))}
-              </select>
-              <label style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <input type="radio" name="layout-replacement" checked={createCopy} onChange={() => setCreateCopy(true)} style={{ width: 18, minHeight: 18 }} />
-                Crear una copia de esta disposición y asignarla a las unidades
-              </label>
-            </>
-          ) : (
-            <p className="muted" style={{ margin: 0 }}>
-              No hay unidades asignadas.
-              {pendingDelete.locked_at
-                ? ' No puede eliminarse porque hay viajes históricos asociados.'
-                : ' Se borrará el plano guardado.'}
-            </p>
-          )}
-          <div className="row">
-            <button type="button" className="danger" onClick={() => { void deleteLayout(); }}
-              disabled={deleting || (pendingDelete.locked_at && assignedVehiclesOf(pendingDelete.id).length === 0)
-                || (assignedVehiclesOf(pendingDelete.id).length > 0 && !createCopy && !replacementId)}>
-              {deleting ? 'Procesando...' : pendingDelete.locked_at ? 'Reasignar unidades y conservar histórico' : 'Confirmar eliminación'}
-            </button>
-            <button type="button" className="secondary" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancelar</button>
+            )}
+            <div className="form-actions">
+              <button type="button" className="danger" onClick={() => { void deleteLayout(); }}
+                disabled={deleting || (pendingDelete.locked_at && assignedVehiclesOf(pendingDelete.id).length === 0)
+                  || (assignedVehiclesOf(pendingDelete.id).length > 0 && !createCopy && !replacementId)}>
+                {deleting ? 'Procesando...' : pendingDelete.locked_at ? 'Reasignar unidades y conservar histórico' : 'Confirmar eliminación'}
+              </button>
+              <button type="button" className="secondary" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancelar</button>
+            </div>
           </div>
         </section>
       )}
-      <div className="card table-wrap">
-        {layouts.loading ? <Loading /> : (
-          <table>
-            <thead><tr><th>Nombre</th><th>Versión</th><th>Asientos</th><th>Pisos y categorías</th><th>Unidades</th><th>Estado</th><th /></tr></thead>
-            <tbody>
-              {(layouts.data ?? []).length === 0 && <tr><td colSpan={7} className="muted">Todavía no hay disposiciones. Creá una para cada tipo de vehículo.</td></tr>}
-              {(layouts.data ?? []).map((l) => (
-                <tr key={l.id}>
-                  <td><b>{l.name}</b></td>
-                  <td>v{l.version}</td>
-                  <td>{seatsOf(l.id)}</td>
-                  <td>{configOf(l.id)}</td>
-                  <td>{assignedVehiclesOf(l.id).length}</td>
-                  <td>{l.locked_at ? <span className="pill warn">Viajes asociados: histórico inmutable</span> : <span className="pill ok">Editable</span>}</td>
-                  <td>
-                    <div className="row">
+      <div className="card list-card">
+        <div className="table-wrap">
+          {layouts.loading ? <Loading /> : (
+            <table>
+              <thead><tr><th>Nombre</th><th>Versión</th><th>Asientos</th><th>Pisos y categorías</th><th>Unidades</th><th>Estado</th><th /></tr></thead>
+              <tbody>
+                {(layouts.data ?? []).length === 0 && <tr><td colSpan={7} className="muted">Todavía no hay disposiciones. Creá una para cada tipo de vehículo.</td></tr>}
+                {(layouts.data ?? []).map((l) => (
+                  <tr key={l.id}>
+                    <td><b>{l.name}</b></td>
+                    <td>v{l.version}</td>
+                    <td>{seatsOf(l.id)}</td>
+                    <td>{configOf(l.id)}</td>
+                    <td>{assignedVehiclesOf(l.id).length}</td>
+                    <td>{l.locked_at ? <span className="pill warn">Viajes asociados: histórico inmutable</span> : <span className="pill ok">Editable</span>}</td>
+                    <td className="td-actions">
                       <Link to={`/admin/disposiciones/${l.id}`}><button className="secondary">{canEdit ? 'Abrir' : 'Ver'}</button></Link>
                       {canEdit && <button type="button" className="danger" disabled={!canDelete(l)} onClick={() => openDelete(l)}>Eliminar</button>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </>
   );

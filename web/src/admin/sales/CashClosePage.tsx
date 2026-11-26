@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, TimeInput, todayLocal } from '../../ui';
+import { Loading, Notice, PageHead, TimeInput, todayLocal } from '../../ui';
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/types';
 import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
@@ -46,7 +46,7 @@ export function CashClosePage() {
 
   return (
     <>
-      <h1>Cierre de caja</h1>
+      <PageHead title="Cierre de caja" />
       <p className="muted">Lo cobrado por forma de pago. Los pasajes cancelados se descuentan.</p>
       {msg && <Notice kind="warn">{msg}</Notice>}
       {report.error && <Notice>{friendly(new Error(report.error))}</Notice>}

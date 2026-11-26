@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice } from '../../ui';
+import { Loading, Notice, PageHead } from '../../ui';
 import { SearchSelect } from '../SearchSelect';
 import type { Route, RouteStop, TicketPrice } from '../../lib/types';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from '../bulk';
@@ -155,8 +155,7 @@ export function TarifasPage() {
 
   return (
     <>
-      <h1>Tarifas</h1>
-      <p className="muted">Configurá el precio por tramo para cada recorrido, con un precio para cada tipo de día: H (día hábil), S (sábado), D (domingo) y F (feriado). Un tramo sin precio en un tipo de día no se vende ese día.</p>
+      <PageHead title="Tarifas" subtitle="Configurá el precio por tramo para cada recorrido, con un precio para cada tipo de día: H (día hábil), S (sábado), D (domingo) y F (feriado). Un tramo sin precio en un tipo de día no se vende ese día." />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 
       <div className="card">
@@ -168,11 +167,11 @@ export function TarifasPage() {
 
       {selectedRoute && (
         <>
-          <form className="card stack" onSubmit={applyToAll}>
+          <form className="card stack fare-bulk-form" onSubmit={applyToAll}>
             <h2>Aplicar a todos</h2>
             <p className="muted">Un mismo precio para todos los tramos entre localidades distintas (por ejemplo Paraná a Santa Fe, sin importar la parada). Después podés cambiar un tramo suelto.</p>
-            <div className="row">
-              <label>
+            <div className="row fare-main-row">
+              <label className="fare-price-field">
                 Precio ($)
                 <input type="number" min="0" step="0.01" value={all.price} onChange={(e) => setAll({ ...all, price: e.target.value })} required />
               </label>
@@ -185,20 +184,20 @@ export function TarifasPage() {
               </label>
               <button type="submit" disabled={busy || stops.loading}>{busy ? 'Aplicando...' : 'Aplicar a todos'}</button>
             </div>
-            <div className="row">
+            <div className="row fare-day-options">
               {DAY_TYPES.map((d) => (
-                <label key={d} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={allDays.includes(d)}
+                <label key={d}>
+                  <input type="checkbox" checked={allDays.includes(d)}
                     onChange={(e) => setAllDays(e.target.checked ? [...allDays, d] : allDays.filter((x) => x !== d))} />{DAY_TYPE_LETTER[d]} · {DAY_TYPE_LABEL[d]}
                 </label>
               ))}
             </div>
           </form>
 
-          <form className="card stack" onSubmit={addPrice}>
+          <form className="card stack fare-add-form" onSubmit={addPrice}>
             <h2>Agregar tarifa</h2>
             <p className="muted">Dejá vacío el precio de los tipos de día en los que no se vende ese tramo.</p>
-            <div className="row">
+            <div className="row fare-add-main">
               <label>
                 Desde (parada origen)
                 <select value={form.from_pos} onChange={set('from_pos')} required>
@@ -218,7 +217,7 @@ export function TarifasPage() {
                 </select>
               </label>
               {DAY_TYPES.map((d) => (
-                <label key={d} title={DAY_TYPE_LABEL[d]}>
+                <label key={d} className="fare-price-field" title={DAY_TYPE_LABEL[d]}>
                   {DAY_TYPE_LETTER[d]} · {DAY_TYPE_LABEL[d]} ($)
                   <input type="number" min="0" step="0.01" value={formPrices[d]} onChange={(e) => setFormPrices({ ...formPrices, [d]: e.target.value })} />
                 </label>

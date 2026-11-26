@@ -1,6 +1,6 @@
 import { must, useQuery } from '../../lib/useQuery';
 import { supabase } from '../../lib/supabase';
-import { Loading } from '../../ui';
+import { Loading, PageHead } from '../../ui';
 import { todayLocal } from '../../ui';
 
 interface DailyRow {
@@ -35,26 +35,17 @@ export function SalesDashboardPage() {
 
   return (
     <>
-      <h1>Ventas</h1>
-      <p className="muted">Resumen del mes actual. Las devoluciones se registran para auditoría; el reintegro se gestiona manualmente.</p>
+      <PageHead title="Ventas" subtitle="Resumen del mes actual. Las devoluciones se registran para auditoría; el reintegro se gestiona manualmente." />
       {rows.loading ? <Loading /> : (
         <>
-          <div className="row">
-            <section className="card stack" aria-label="Ventas del mes">
-              <span className="muted">Ventas</span><strong style={{ fontSize: 28 }}>{summary.sales}</strong>
-            </section>
-            <section className="card stack" aria-label="Total vendido">
-              <span className="muted">Importe vendido</span><strong style={{ fontSize: 28 }}>${summary.amount.toFixed(2)}</strong>
-            </section>
-            <section className="card stack" aria-label="Pasajes de cortesía">
-              <span className="muted">Pasajes de cortesía</span><strong style={{ fontSize: 28 }}>{summary.complimentary}</strong>
-            </section>
-            <section className="card stack" aria-label="Ventas devueltas">
-              <span className="muted">Ventas devueltas</span><strong style={{ fontSize: 28 }}>{summary.refunded}</strong>
-            </section>
+          <div className="stats">
+            <div className="stat" aria-label="Ventas del mes"><span>Ventas</span><b>{summary.sales}</b></div>
+            <div className="stat" aria-label="Total vendido"><span>Importe vendido</span><b>${summary.amount.toFixed(2)}</b></div>
+            <div className="stat" aria-label="Pasajes de cortesía"><span>Pasajes de cortesía</span><b>{summary.complimentary}</b></div>
+            <div className="stat" aria-label="Ventas devueltas"><span>Ventas devueltas</span><b>{summary.refunded}</b></div>
           </div>
-          <div className="card table-wrap">
-            <h2>Actividad diaria</h2>
+          <div className="card list-card">
+            <div className="list-head"><h2>Actividad diaria</h2></div>
             <table>
               <thead><tr><th>Fecha</th><th>Ventas</th><th>Importe</th><th>Devoluciones</th><th>Cortesías</th></tr></thead>
               <tbody>

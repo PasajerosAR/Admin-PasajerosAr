@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { FilterBox, Loading, Notice, TimeInput, matches } from '../ui';
+import { FilterBox, Loading, Notice, PageHead, TimeInput, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import { suggestNextDay } from '../lib/midnight';
 import type { Route, RouteStop, SeatLayout, Service, ServiceDeparture, ServiceStop } from '../lib/types';
@@ -186,10 +186,7 @@ export function ServicesPage() {
 
   return (
     <>
-      <div className="row page-heading" style={{ alignItems: 'center' }}>
-        <h1>Servicios</h1>
-        {canEdit && <button onClick={openNew}>Nuevo servicio</button>}
-      </div>
+      <PageHead title="Servicios" actions={canEdit && <button onClick={openNew}>Nuevo servicio</button>} />
       
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && editing && (
@@ -297,10 +294,10 @@ export function ServicesPage() {
           </button>
         ))}
       </div>
-      <div className="card table-wrap">
-        <FilterBox value={q} onChange={setQ} placeholder="Buscar servicio" />
+      <div className="card list-card">
+        <div className="list-head"><FilterBox value={q} onChange={setQ} placeholder="Buscar servicio" /></div>
         {canEdit && <BulkBar bulk={bulk} one="servicio" many="servicios" busy={bulkBusy} onDelete={() => void removeSelected()} />}
-        {services.loading ? <Loading /> : (
+        <div className="table-wrap">{services.loading ? <Loading /> : (
           <table>
             <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Servicio</th><th>Salidas de {DAY_TYPE_LABEL[folder].toLowerCase()} (letras: H hábil, S sábado, D domingo, F feriado)</th><th>Estado</th><th /></tr></thead>
             <tbody>
@@ -316,7 +313,7 @@ export function ServicesPage() {
               ))}
             </tbody>
           </table>
-        )}
+        )}</div>
       </div>
     </>
   );

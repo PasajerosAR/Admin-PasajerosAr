@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { supabase } from '../lib/supabase';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice, formatTime } from '../ui';
+import { Loading, Notice, PageHead, formatTime } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Company } from '../lib/types';
 import type { LatLng } from '../lib/routePath';
@@ -220,20 +220,24 @@ export function LiveTripsPage() {
 
   return (
     <>
-      <h1>Seguimiento GPS</h1>
-      <p className="muted" style={{ margin: 0 }}>Posición actual de los viajes en curso. Se actualiza cada 15 segundos; no se guarda un historial de ubicaciones.</p>
-      <div className="row" style={{ alignItems: 'flex-end' }}>
-        {platformAdmin && (
-          <label style={{ maxWidth: 260 }}>Empresa
-            <select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
-              <option value="">Todas las empresas</option>
-              {(companies.data ?? []).map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
-            </select>
-          </label>
-        )}
-        <button className="secondary compact" style={{ flex: '0 0 auto' }} onClick={trips.reload}>Actualizar ahora</button>
-        {(trips.loading || schedules.loading) && trips.data && <span className="muted" role="status" style={{ fontSize: 12 }}>Actualizando…</span>}
-      </div>
+      <PageHead
+        title="Seguimiento GPS"
+        subtitle="Posición actual de los viajes en curso. Se actualiza cada 15 segundos; no se guarda un historial de ubicaciones."
+        actions={
+          <>
+            {platformAdmin && (
+              <label>Empresa
+                <select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+                  <option value="">Todas las empresas</option>
+                  {(companies.data ?? []).map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                </select>
+              </label>
+            )}
+            <button className="secondary compact" onClick={trips.reload}>Actualizar ahora</button>
+            {(trips.loading || schedules.loading) && trips.data && <span className="muted" role="status">Actualizando…</span>}
+          </>
+        }
+      />
       <div className="gps-cards" aria-label="Estado de los servicios">
         {CARDS.map(([flag, label]) => (
           <button key={flag} type="button" className={`gps-card${flag !== 'all' && countOf(flag) > 0 ? ' hot' : ''}${filter === flag ? ' on' : ''}`}

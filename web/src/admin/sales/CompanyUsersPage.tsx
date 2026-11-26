@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { FilterBox, Loading, Notice, matches } from '../../ui';
+import { FilterBox, Loading, Notice, PageHead, matches } from '../../ui';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Profile } from '../../lib/types';
 
@@ -53,7 +53,7 @@ export function CompanyUsersPage() {
 
   return (
     <>
-      <h1>Usuarios internos</h1>
+      <PageHead title="Usuarios internos" />
       <p className="muted">
         Administradores y vendedores de tu empresa. Los vendedores tienen acceso completo
         a ventas, devoluciones y QR de cortesía. Todo queda registrado para auditoría.

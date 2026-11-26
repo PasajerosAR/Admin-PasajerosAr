@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, formatDateTime, formatTime, todayLocal } from '../../ui';
+import { Loading, Notice, PageHead, formatDateTime, formatTime, todayLocal } from '../../ui';
 import type { RouteStop } from '../../lib/types';
 import {
   columnTemplate, formatMoney, priceFor, seatClassName, seatOccupied, seatState, summarize,
@@ -226,7 +226,7 @@ export function VentanillaPage() {
 
   return (
     <>
-      <h1>Ventanilla</h1>
+      <PageHead title="Ventanilla" />
       <p className="muted">Vendé pasajes con los mismos asientos y tarifas que la web y la taquilla del conductor.</p>
       {error && <Notice kind="error">{error}</Notice>}
 

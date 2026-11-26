@@ -73,9 +73,9 @@ export function GpsAlerts({ alerts, selectedTripId, selectedLabel, tick }: {
   const list = incidents.data ?? [];
   return (
     <div className="gps-alerts">
-      <div className="card stack">
-        <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0 }}>Avisos {list.length + alerts.length > 0 && <span className="pill warn">{list.length + alerts.length}</span>}</h2>
+      <div className="card">
+        <div className="card-head">
+          <h2>Avisos {list.length + alerts.length > 0 && <span className="pill warn">{list.length + alerts.length}</span>}</h2>
           <button type="button" className="secondary compact" onClick={toggleSound}>{sound ? 'Sonido: sí' : 'Sonido: no'}</button>
         </div>
         {incidents.error && <Notice>{incidents.error}</Notice>}
@@ -92,10 +92,10 @@ export function GpsAlerts({ alerts, selectedTripId, selectedLabel, tick }: {
         {alerts.map((a) => <div key={a.key} className={`alert-row ${a.kind}`}><div>{a.text}<br /><small>Aviso automático</small></div></div>)}
       </div>
 
-      <form className="card stack" onSubmit={send}>
-        <h2 style={{ margin: 0 }}>Enviar mensaje a conductores</h2>
+      <form className="card" onSubmit={send}>
+        <div className="card-head"><h2>Enviar mensaje a conductores</h2></div>
         {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
-        <div className="row">
+        <div className="form-grid">
           <label>Para
             <select value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}>
               <option value="all">Todos los conductores</option>
@@ -107,9 +107,9 @@ export function GpsAlerts({ alerts, selectedTripId, selectedLabel, tick }: {
               {Object.entries(LEVEL_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </label>
+          <label className="span-12">Mensaje<textarea rows={3} maxLength={500} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Ej.: Corte en Av. Ramírez, desviar por Churruarín" required /></label>
+          <div className="form-actions"><button type="submit" disabled={busy}>{busy ? 'Enviando...' : 'Enviar'}</button></div>
         </div>
-        <label>Mensaje<textarea rows={3} maxLength={500} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Ej.: Corte en Av. Ramírez, desviar por Churruarín" required /></label>
-        <button type="submit" disabled={busy} style={{ alignSelf: 'flex-start' }}>{busy ? 'Enviando...' : 'Enviar'}</button>
         {(messages.data ?? []).length > 0 && (
           <div className="stack">
             <b>Últimos enviados</b>

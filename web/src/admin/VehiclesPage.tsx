@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { FilterBox, Loading, Notice, matches } from '../ui';
+import { FilterBox, Loading, Notice, PageHead, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import { VEHICLE_KIND_LABEL, VEHICLE_STATUS_LABEL, type SeatLayout, type Vehicle, type VehicleStatus } from '../lib/types';
 
@@ -43,62 +43,64 @@ export function VehiclesPage() {
 
   return (
     <>
-      <h1>Flota</h1>
+      <PageHead title="Flota" />
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {floors.error && <Notice>{floors.error}</Notice>}
       {canEdit && (
-        <form className="card stack" onSubmit={create}>
-          <h2>Agregar vehículo</h2>
-          <div className="row">
-            <label>Tipo<select value={form.kind} onChange={set('kind')}><option value="combi">Combi</option><option value="minibus">Minibús</option><option value="colectivo">Colectivo</option></select></label>
+        <form className="card" onSubmit={create}>
+          <div className="card-head"><h2>Agregar vehículo</h2></div>
+          <div className="form-grid">
+            <label className="span-3">Tipo<select value={form.kind} onChange={set('kind')}><option value="combi">Combi</option><option value="minibus">Minibús</option><option value="colectivo">Colectivo</option></select></label>
             <label>Número de interno<input value={form.internal_number} onChange={set('internal_number')} required /></label>
             <label>Patente<input value={form.plate} onChange={set('plate')} required /></label>
-          </div>
-          <div className="row">
             <label>Marca<input value={form.brand} onChange={set('brand')} /></label>
             <label>Modelo<input value={form.model} onChange={set('model')} /></label>
-            <label>Ano<input type="number" min={1980} max={2100} value={form.year} onChange={set('year')} /></label>
-            <label>Disposición de asientos
+            <label className="span-2">Ano<input type="number" min={1980} max={2100} value={form.year} onChange={set('year')} /></label>
+            <label className="span-6">Disposición de asientos
               <select value={form.layout_id} onChange={set('layout_id')}>
                 <option value="">Definir después</option>
                 {(layouts.data ?? []).map((l) => <option key={l.id} value={l.id}>{layoutLabel(l)}</option>)}
               </select>
             </label>
-            <button type="submit">Agregar</button>
+            <div className="form-actions"><button type="submit">Agregar</button></div>
+            <p className="muted">Para un colectivo de doble piso, asigná un plano con ambos pisos. La flota y la web identifican el tipo de unidad según esa disposición.</p>
           </div>
-          <p className="muted">Para un colectivo de doble piso, asigná un plano con ambos pisos. La flota y la web identifican el tipo de unidad según esa disposición.</p>
         </form>
       )}
-      <div className="card table-wrap">
-        <FilterBox value={q} onChange={setQ} placeholder="Buscar por interno o patente" />
-        {vehicles.loading ? <Loading /> : (
-          <table>
-            <thead><tr><th>Interno</th><th>Tipo</th><th>Patente</th><th>Marca y modelo</th><th>Estado</th><th>Disposición</th></tr></thead>
-            <tbody>
-              {visible.length === 0 && <tr><td colSpan={6} className="muted">{(vehicles.data ?? []).length === 0 ? 'Todavía no hay vehículos.' : 'Ningún vehículo coincide.'}</td></tr>}
-              {visible.map((v) => (
-                <tr key={v.id}>
-                  <td><b>{v.internal_number}</b></td>
-                  <td>{floorCount(v.layout_id) > 1 ? `${VEHICLE_KIND_LABEL[v.kind]} doble piso` : VEHICLE_KIND_LABEL[v.kind]}</td>
-                  <td>{v.plate}</td>
-                  <td>{[v.brand, v.model, v.year].filter(Boolean).join(' ') || '-'}</td>
-                  <td>
-                    <select aria-label="Estado" disabled={!canEdit} value={v.status} onChange={(e) => update(v.id, { status: e.target.value as VehicleStatus })}>
-                      {Object.entries(VEHICLE_STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <select aria-label="Disposición" disabled={!canEdit} value={v.layout_id ?? ''} onChange={(e) => update(v.id, { layout_id: e.target.value || null })}>
-                      <option value="">Sin definir</option>
-                      {(layouts.data ?? []).map((l) => <option key={l.id} value={l.id}>{layoutLabel(l)}</option>)}
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        <p className="muted">Cambiar la disposición de un vehículo no modifica los viajes que ya la tienen asignada: cada viaje conserva la disposición que tenía al asignarle el vehículo.</p>
+      <div className="card list-card">
+        <div className="list-head">
+          <FilterBox value={q} onChange={setQ} placeholder="Buscar por interno o patente" />
+        </div>
+        <div className="table-wrap">
+          {vehicles.loading ? <Loading /> : (
+            <table>
+              <thead><tr><th>Interno</th><th>Tipo</th><th>Patente</th><th>Marca y modelo</th><th>Estado</th><th>Disposición</th></tr></thead>
+              <tbody>
+                {visible.length === 0 && <tr><td colSpan={6} className="muted">{(vehicles.data ?? []).length === 0 ? 'Todavía no hay vehículos.' : 'Ningún vehículo coincide.'}</td></tr>}
+                {visible.map((v) => (
+                  <tr key={v.id}>
+                    <td><b>{v.internal_number}</b></td>
+                    <td>{floorCount(v.layout_id) > 1 ? `${VEHICLE_KIND_LABEL[v.kind]} doble piso` : VEHICLE_KIND_LABEL[v.kind]}</td>
+                    <td>{v.plate}</td>
+                    <td>{[v.brand, v.model, v.year].filter(Boolean).join(' ') || '-'}</td>
+                    <td>
+                      <select aria-label="Estado" disabled={!canEdit} value={v.status} onChange={(e) => update(v.id, { status: e.target.value as VehicleStatus })}>
+                        {Object.entries(VEHICLE_STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select aria-label="Disposición" disabled={!canEdit} value={v.layout_id ?? ''} onChange={(e) => update(v.id, { layout_id: e.target.value || null })}>
+                        <option value="">Sin definir</option>
+                        {(layouts.data ?? []).map((l) => <option key={l.id} value={l.id}>{layoutLabel(l)}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <p className="list-foot">Cambiar la disposición de un vehículo no modifica los viajes que ya la tienen asignada: cada viaje conserva la disposición que tenía al asignarle el vehículo.</p>
       </div>
     </>
   );

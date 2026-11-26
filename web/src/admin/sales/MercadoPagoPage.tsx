@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
-import { Loading, Notice, formatDateTime } from '../../ui';
+import { Loading, Notice, PageHead, formatDateTime } from '../../ui';
 
 interface ConnectionStatus {
   connected: boolean;
@@ -81,7 +81,7 @@ export function MercadoPagoPage() {
 
   return (
     <>
-      <h1>Mercado Pago</h1>
+      <PageHead title="Mercado Pago" />
       <p className="muted">Conectá la cuenta vendedora de prueba de esta empresa. El checkout no aceptará pagos reales.</p>
       {notice && <Notice kind={notice.kind}>{notice.text}</Notice>}
 
