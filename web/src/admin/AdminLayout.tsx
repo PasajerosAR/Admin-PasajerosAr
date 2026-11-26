@@ -27,6 +27,7 @@ const LINKS: [string, string, boolean][] = [
   ['/admin', 'Operación del día', true],
   ['/admin/gps', 'Seguimiento GPS', false],
   ['/admin/servicios', 'Servicios', false],
+  ['/admin/feriados', 'Feriados', false],
   ['/admin/recorridos', 'Recorridos', false],
   ['/admin/vehiculos', 'Flota', false],
   ['/admin/disposiciones', 'Disposiciones de asientos', false],
@@ -116,10 +117,8 @@ export function AdminLayout() {
   const q = fold(query);
   const shown = q ? links.filter(([, label]) => fold(label).includes(q)) : links;
   // sección actual: el enlace más específico que coincide con la ruta
-  const currentLink = [...links].filter(([to, , end]) => (end ? pathname === to : pathname === to || pathname.startsWith(to + '/')))
-    .sort((a, b) => b[0].length - a[0].length)[0];
-  const current = currentLink?.[1] ?? title;
-  const currentGroup = groups[currentLink?.[0] ?? ''] ?? '';
+  const current = [...links].filter(([to, , end]) => (end ? pathname === to : pathname === to || pathname.startsWith(to + '/')))
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ?? title;
   return (
     <div className="admin">
       <nav id="admin-nav" className={menuOpen ? 'open' : ''} aria-label="Menú del panel">
@@ -140,9 +139,7 @@ export function AdminLayout() {
             <svg viewBox="0 0 24 24" aria-hidden="true">{menuOpen ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}</svg>
             Menú
           </button>
-          <span className="admin-topbar-title">
-            {currentGroup && currentGroup !== current ? <>{currentGroup} <span aria-hidden="true">/</span> <b>{current}</b></> : <b>{current}</b>}
-          </span>
+          <span className="admin-topbar-title">{current}</span>
         </header>
         <ProfileMenu />
         <main>

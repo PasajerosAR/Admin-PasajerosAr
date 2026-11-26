@@ -12,6 +12,7 @@ import { LayoutEditorPage } from './admin/LayoutEditorPage';
 import { RoutesPage } from './admin/RoutesPage';
 import { FirstSteps } from './admin/FirstSteps';
 import { ServicesPage } from './admin/ServicesPage';
+import { HolidaysPage } from './admin/HolidaysPage';
 import { PlacesPage } from './admin/PlacesPage';
 import { CompaniesPage } from './admin/CompaniesPage';
 import { PlatformStaffPage } from './admin/PlatformStaffPage';
@@ -136,6 +137,7 @@ export function App() {
         <Route path="disposiciones/:id" element={profile.role === 'company_admin' ? <LayoutEditorPage /> : <Navigate to="/admin" replace />} />
         <Route path="recorridos" element={profile.role === 'company_admin' || profile.role === 'support' ? <RoutesPage /> : <Navigate to="/admin" replace />} />
         <Route path="servicios" element={profile.role === 'company_admin' ? <ServicesPage /> : <Navigate to="/admin" replace />} />
+        <Route path="feriados" element={profile.role === 'company_admin' ? <HolidaysPage /> : <Navigate to="/admin" replace />} />
         <Route path="conductores" element={profile.role === 'company_admin' ? <DriversPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <SalesDashboardPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas/vender" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' || profile.role === 'seller' ? <VentanillaPage /> : <Navigate to="/admin" replace />} />

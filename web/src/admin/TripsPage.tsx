@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice, PageHead, formatTime, todayLocal } from '../ui';
+import { Loading, Notice, formatTime, todayLocal } from '../ui';
 import { fold } from '../lib/text';
 import { useAuth } from '../auth/AuthProvider';
 import { INCIDENT_LABEL, STATUS_LABEL, type IncidentKind, type Profile, type TripStatus, type Vehicle } from '../lib/types';
@@ -24,6 +24,10 @@ const toLocalInput = (value: Date) => {
   return shifted.toISOString().slice(0, 16);
 };
 
+interface PlanRow { date: string; day_type: DayType; holiday: string | null; other_type: number; blocked: number }
+const dayLabel = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+const addDays = (value: string, n: number) => { const d = new Date(`${value}T12:00:00`); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+
 interface TripRow {
   id: string; service_id: string; layout_id: string | null; status: TripStatus; scheduled_departure: string; vehicle_id: string | null; driver_id: string | null;
   started_at: string | null; started_manually: boolean; day_type: DayType; published_at: string | null;
@@ -36,7 +40,12 @@ export function TripsPage() {
   const canEdit = profile?.role === 'company_admin';
   const [date, setDate] = useState(todayLocal());
   const [typeOverride, setTypeOverride] = useState<DayType | null>(null);
-  const dayType = typeOverride ?? dayTypeOf(new Date(`${date}T12:00:00`));
+  // feriados que cargó la empresa: esa fecha toma el tipo "Feriado" sola
+  const holidayQuery = useQuery(async () => must(await supabase.from('company_holidays').select('holiday_date,name')) as { holiday_date: string; name: string }[], []);
+  const holidayNames = new Map((holidayQuery.data ?? []).map((h) => [h.holiday_date, h.name]));
+  const dayType = typeOverride ?? (holidayNames.has(date) ? 'holiday' : dayTypeOf(new Date(`${date}T12:00:00`)));
+  const [days, setDays] = useState(1);
+  const [plan, setPlan] = useState<PlanRow[] | null>(null);
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [groupBy, setGroupBy] = useState<'service' | 'route' | 'none'>('service');
   const [sortBy, setSortBy] = useState<'service' | 'departure'>('service');
@@ -70,6 +79,41 @@ export function TripsPage() {
     else { setMsg({ kind: 'ok', text: ok }); trips.reload(); }
   };
 
+  // Varios días: se arma el plan (cada fecha con su tipo automático, corregible) y recién después se genera
+  const loadConflicts = async (rows: { date: string; day_type: DayType; holiday: string | null }[]) => {
+    const { data, error } = await supabase.rpc('generate_trips_range_preview', { p_dates: rows.map((r) => r.date), p_types: rows.map((r) => r.day_type) });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    const found = data as { other_type: number; blocked: number }[];
+    setPlan(rows.map((r, i) => ({ ...r, other_type: Number(found[i]?.other_type ?? 0), blocked: Number(found[i]?.blocked ?? 0) })));
+  };
+  const openPlan = async () => {
+    setMsg(null);
+    const { data, error } = await supabase.rpc('day_types_for_range', { p_from: date, p_days: days });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    await loadConflicts(data as { date: string; day_type: DayType; holiday: string | null }[]);
+  };
+  const generateRange = async () => {
+    if (!plan) return;
+    const withOther = plan.filter((r) => r.other_type > 0);
+    const replaceable = withOther.reduce((n, r) => n + r.other_type, 0);
+    if (withOther.length > 0 && !window.confirm(`${withOther.length} fecha(s) ya tienen ${replaceable} viajes de otro tipo de día. Se reemplazan los que se puedan; los que tienen ventas, conductor o ya iniciaron se saltean. ¿Continuar?`)) return;
+    const { data, error } = await supabase.rpc('generate_trips_range', { p_dates: plan.map((r) => r.date), p_types: plan.map((r) => r.day_type), p_replace: withOther.length > 0 });
+    if (error) { setMsg({ kind: 'error', text: friendly(error) }); return; }
+    const results = data as { date: string; status: string; created: number; replaced?: number }[];
+    const created = results.reduce((n, r) => n + Number(r.created ?? 0), 0);
+    const skipped = results.filter((r) => r.status !== 'ok');
+    setPlan(null);
+    setMsg({ kind: skipped.length ? 'error' : 'ok', text: `Se generaron ${created} viajes en ${results.length - skipped.length} día(s). Todavía no están publicados.`
+      + (skipped.length ? ` No se pudieron generar: ${skipped.map((r) => dayLabel(r.date)).join(', ')} (tienen ventas, conductor o ya iniciaron).` : '') });
+    trips.reload();
+  };
+  const publishRange = async () => {
+    const to = addDays(date, days - 1);
+    if (!window.confirm(`¿Publicar todos los viajes sin publicar del ${dayLabel(date)} al ${dayLabel(to)}? Desde ese momento los pasajeros pueden verlos y comprar.`)) return;
+    const { data, error } = await supabase.rpc('publish_trips_range', { p_from: date, p_to: to });
+    if (error) setMsg({ kind: 'error', text: friendly(error) });
+    else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados.` }); trips.reload(); }
+  };
   const generate = async () => {
     // si el día ya tiene viajes de otro tipo (ej. feriado y ahora hábil), se avisa y se reemplazan
     const { data: preview, error } = await supabase.rpc('generate_trips_preview', { p_date: date, p_day_type: dayType });
@@ -167,37 +211,61 @@ export function TripsPage() {
 
   return (
     <>
-      <PageHead
-        title="Operación del día"
-        actions={
-          canEdit && (
-            <>
-              <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
-              <button className="secondary" onClick={generate}>Generar viajes del día</button>
-              <button onClick={publish} disabled={drafts === 0}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>
-            </>
-          )
-        }
-      />
-      <div className="toolbar">
-        <label>Fecha<input type="date" value={date} onChange={(e) => { setDate(e.target.value); setTypeOverride(null); }} /></label>
+      <h1>Operación del día</h1>
+      <div className="row">
+        <label style={{ flex: '0 0 200px' }}>Fecha<input type="date" value={date} onChange={(e) => { setDate(e.target.value); setTypeOverride(null); }} /></label>
         {canEdit && (
-          <label>Tipo de día
+          <label style={{ flex: '0 0 200px' }}>Tipo de día
             <select value={dayType} onChange={(e) => setTypeOverride(e.target.value as DayType)}>
               {DAY_TYPES.map((d) => <option key={d} value={d}>{DAY_TYPE_LABEL[d]}</option>)}
             </select>
           </label>
         )}
-        <span className="toolbar-spacer" />
+        <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
+        {canEdit && <label style={{ flex: '0 0 130px' }}>Repetir (días)<input type="number" min={1} max={60} value={days} onChange={(e) => { setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1))); setPlan(null); }} /></label>}
+        {canEdit && <button className="secondary" onClick={days > 1 ? openPlan : generate}>{days > 1 ? `Generar ${days} días` : 'Generar viajes del día'}</button>}
+        {canEdit && (days > 1
+          ? <button onClick={publishRange}>{`Publicar ${days} días`}</button>
+          : <button onClick={publish} disabled={drafts === 0}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>)}
       </div>
+      {canEdit && plan && (
+        <div className="card stack">
+          <h2>Generar {plan.length} días desde el {dayLabel(date)}</h2>
+          <p className="muted">Cada fecha toma su tipo sola (los feriados salen del calendario de la empresa). Podés corregir el tipo de una fecha antes de generar.</p>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Tipo de día</th><th>Aviso</th></tr></thead>
+              <tbody>
+                {plan.map((r, i) => (
+                  <tr key={r.date}>
+                    <td>{dayLabel(r.date)}</td>
+                    <td>
+                      <select value={r.day_type} onChange={(e) => void loadConflicts(plan.map((x, j) => (j === i ? { ...x, day_type: e.target.value as DayType } : x)))}>
+                        {DAY_TYPES.map((d) => <option key={d} value={d}>{DAY_TYPE_LABEL[d]}</option>)}
+                      </select>
+                    </td>
+                    <td className="muted">
+                      {r.holiday ? `Feriado: ${r.holiday}. ` : ''}
+                      {r.blocked > 0 ? `Tiene ${r.other_type} viajes de otro tipo y ${r.blocked} no se pueden reemplazar (se saltea). `
+                        : r.other_type > 0 ? `Ya tiene ${r.other_type} viajes de otro tipo: se reemplazan. ` : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="row">
+            <button onClick={() => void generateRange()}>Generar {plan.length} días</button>
+            <button className="secondary" onClick={() => setPlan(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {canEdit && drafts > 0 && <Notice kind="warn">Hay {drafts} viajes sin publicar: los pasajeros todavía no los ven.</Notice>}
       {trips.error && <Notice>{trips.error}</Notice>}
       {canEdit && (stale.data ?? []).length > 0 && (
         <div className="card">
-          <div className="card-head">
-            <h2>Viajes en curso de días anteriores</h2>
-          </div>
+          <h2>Viajes en curso de días anteriores</h2>
           <p className="muted">Siguen "en curso" porque nadie los finalizó. Finalizalos a mano para que dejen de verse.</p>
           <div className="table-wrap">
             <table>
@@ -209,7 +277,7 @@ export function TripsPage() {
                     <td>{new Date(`${t.service_date}T12:00:00`).toLocaleDateString('es-AR')}</td>
                     <td>{t.service_departures?.routes?.name}</td>
                     <td>{formatTime(t.scheduled_departure)}</td>
-                    <td className="td-actions"><button className="secondary" onClick={() => openEnding(t)}>Finalizar manual</button></td>
+                    <td><button className="secondary" onClick={() => openEnding(t)}>Finalizar manual</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -218,58 +286,57 @@ export function TripsPage() {
         </div>
       )}
       {canEdit && ending && (
-        <div className="card" role="dialog" aria-label="Finalizar viaje manualmente">
-          <div className="card-head"><h2>Finalizar viaje {ending.label}</h2></div>
+        <div className="card stack" role="dialog" aria-label="Finalizar viaje manualmente">
+          <h2>Finalizar viaje {ending.label}</h2>
           <p className="muted">Se propone la hora de llegada prevista. Quedan registrados la hora, el motivo y que se cerró a mano.</p>
-          <div className="form-grid">
+          <div className="row">
             <label>Hora de fin<input type="datetime-local" value={ending.value} min={ending.min} max={toLocalInput(new Date())} onChange={(e) => setEnding({ ...ending, value: e.target.value })} /></label>
-            <label className="span-12">Motivo<input value={ending.reason} onChange={(e) => setEnding({ ...ending, reason: e.target.value })} placeholder="Ej.: el conductor no finalizó el viaje" /></label>
-            <div className="form-actions">
-              <button disabled={!ending.value || ending.reason.trim().length < 3} onClick={confirmEnding}>Finalizar viaje</button>
-              <button className="secondary" onClick={() => setEnding(null)}>Cancelar</button>
-            </div>
+            <label>Motivo<input value={ending.reason} onChange={(e) => setEnding({ ...ending, reason: e.target.value })} placeholder="Ej.: el conductor no finalizó el viaje" /></label>
+          </div>
+          <div className="row">
+            <button disabled={!ending.value || ending.reason.trim().length < 3} onClick={confirmEnding}>Finalizar viaje</button>
+            <button className="secondary" onClick={() => setEnding(null)}>Cancelar</button>
           </div>
         </div>
       )}
       {alerts.length > 0 && (
         <Notice kind="warn">{alerts.length === 1 ? '1 salida no inició' : `${alerts.length} salidas no iniciaron`} pasada la hora programada: {alerts.map((trip) => `#${trip.services?.code ?? '-'} · ${formatTime(trip.scheduled_departure)} · ${trip.service_departures?.routes?.name ?? 'sin recorrido'}`).join(' | ')}.</Notice>
       )}
-      <div className="card list-card">
-        <div className="list-head">
-          <input className="filter-box" type="search" placeholder="Buscar servicio o recorrido" aria-label="Buscar servicio o recorrido" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <label className="inline">Estado
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TripStatus | 'all')}>
-              <option value="all">Todos</option>
-              {(Object.keys(STATUS_LABEL) as TripStatus[]).filter((status) => status !== 'cancelled').map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
-            </select>
-          </label>
-          <label className="inline">Asignación
-            <select value={assignmentFilter} onChange={(event) => setAssignmentFilter(event.target.value as 'all' | 'pending')}>
-              <option value="all">Todas</option>
-              <option value="pending">Falta unidad o conductor</option>
-            </select>
-          </label>
-          <label className="inline">Agrupar por
-            <select value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'service' | 'route' | 'none')}>
-              <option value="service">Servicio</option>
-              <option value="route">Recorrido</option>
-              <option value="none">Sin agrupar</option>
-            </select>
-          </label>
-          <label className="inline">Orden
-            <select value={sortBy} onChange={(event) => setSortBy(event.target.value as 'service' | 'departure')}>
-              <option value="service">Servicio menor a mayor</option>
-              <option value="departure">Hora de salida</option>
-            </select>
-          </label>
-          <span className="list-head-spacer" />
-        </div>
+      <div className="row operation-filters">
+        <label>Buscar servicio o recorrido<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ej.: 201 o Paraná - Santa Fe" /></label>
+        <label>Estado
+          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as TripStatus | 'all')}>
+            <option value="all">Todos</option>
+            {(Object.keys(STATUS_LABEL) as TripStatus[]).filter((status) => status !== 'cancelled').map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
+          </select>
+        </label>
+        <label>Asignación
+          <select value={assignmentFilter} onChange={(event) => setAssignmentFilter(event.target.value as 'all' | 'pending')}>
+            <option value="all">Todas</option>
+            <option value="pending">Falta unidad o conductor</option>
+          </select>
+        </label>
+        <label>Agrupar por
+          <select value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'service' | 'route' | 'none')}>
+            <option value="service">Servicio</option>
+            <option value="route">Recorrido</option>
+            <option value="none">Sin agrupar</option>
+          </select>
+        </label>
+        <label>Orden
+          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as 'service' | 'departure')}>
+            <option value="service">Servicio menor a mayor</option>
+            <option value="departure">Hora de salida</option>
+          </select>
+        </label>
+      </div>
+      <div className="card">
         {trips.loading ? <Loading /> : (
           groups.length === 0
-            ? <div className="empty">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</div>
+            ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</p>
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
-                open={openGroups[group.key] ?? (groupBy === 'none')}
+                open={openGroups[group.key] ?? (groupBy === 'none' || group.trips.some((trip) => trip.status === 'in_progress' || (trip.status === 'scheduled' && new Date(trip.scheduled_departure).getTime() < now)))}
                 onToggle={(event) => {
                   const isOpen = event.currentTarget.open;
                   setOpenGroups((current) => current[group.key] === isOpen ? current : { ...current, [group.key]: isOpen });
@@ -285,15 +352,13 @@ export function TripsPage() {
                   if (ids.length === 0) return null;
                   const vs = new Set(group.trips.filter((t) => t.status === 'scheduled').map((t) => t.vehicle_id ?? ''));
                   return (
-                    <div className="group-vehicle">
-                      <label>Vehículo para todas las vueltas del servicio
-                        <select value={vs.size === 1 ? [...vs][0] : ''} onChange={(e) => assignGroup(ids, e.target.value)}>
-                          <option value="">{vs.size > 1 ? 'Varios vehículos' : 'Sin asignar'}</option>
-                          {vehiclesForService(group.trips[0].service_id).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
-                        </select>
-                        <span className="muted">Si se rompe, el conductor inicia el viaje con otra unidad.</span>
-                      </label>
-                    </div>
+                    <label className="group-vehicle">Vehículo para todas las vueltas del servicio
+                      <select value={vs.size === 1 ? [...vs][0] : ''} onChange={(e) => assignGroup(ids, e.target.value)}>
+                        <option value="">{vs.size > 1 ? 'Varios vehículos' : 'Sin asignar'}</option>
+                        {vehiclesForService(group.trips[0].service_id).map((v) => <option key={v.id} value={v.id}>Interno {v.internal_number} ({v.plate})</option>)}
+                      </select>
+                      <span className="muted">Si se rompe, el conductor inicia el viaje con otra unidad.</span>
+                    </label>
                   );
                 })()}
                 <div className="table-wrap">
@@ -304,7 +369,7 @@ export function TripsPage() {
                         const editable = canEdit && t.status === 'scheduled';
                         return (
                           <tr key={t.id}>
-                            <td><b>#{t.services?.code}</b><br /><span className="muted">{DAY_TYPE_LABEL[t.day_type]}</span></td>
+                            <td><b>#{t.services?.code}</b><br /><span className="muted" style={{ fontSize: 12 }}>{DAY_TYPE_LABEL[t.day_type]}</span></td>
                             <td>{t.service_departures?.routes?.name}</td>
                             <td>{formatTime(t.scheduled_departure)}</td>
                             <td>
@@ -335,15 +400,15 @@ export function TripsPage() {
                                 {(drivers.data ?? []).map((d) => <option key={d.id} value={d.id}>{d.full_name}</option>)}
                               </select>
                             </td>
-                            <td className="td-actions">
+                            <td>
                               {canEdit && t.status === 'in_progress' && (
                                 <button className="secondary" onClick={() => openEnding({ id: t.id, started_at: t.started_at, scheduled_departure: t.scheduled_departure, services: t.services })}>Finalizar manual</button>
                               )}
                               {editable && (
-                                <>
+                                <div className="row">
                                   <button className="secondary" disabled={!t.vehicle_id} onClick={() => startManually(t.id)}>Iniciar manual</button>
                                   <button className="danger" onClick={() => cancel(t.id)}>Cancelar</button>
-                                </>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -355,24 +420,21 @@ export function TripsPage() {
               </details>
             ))
         )}
-        <p className="list-foot">Las salidas "Sin publicar" no se ven en la web ni en la app del conductor.</p>
       </div>
       {(incidents.data ?? []).length > 0 && (
-        <div className="card">
-          <div className="card-head"><h2>Incidencias del día</h2></div>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Hora</th><th>Servicio</th><th>Conductor</th><th>Tipo</th><th>Detalle</th></tr></thead>
-              <tbody>
-                {(incidents.data ?? []).map((i) => (
-                  <tr key={i.id}>
-                    <td>{formatTime(i.created_at)}</td><td><b>{i.trips?.services?.code}</b></td><td>{i.profiles?.full_name}</td>
-                    <td>{INCIDENT_LABEL[i.kind]}</td><td>{i.note ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="card table-wrap">
+          <h2>Incidencias del día</h2>
+          <table>
+            <thead><tr><th>Hora</th><th>Servicio</th><th>Conductor</th><th>Tipo</th><th>Detalle</th></tr></thead>
+            <tbody>
+              {(incidents.data ?? []).map((i) => (
+                <tr key={i.id}>
+                  <td>{formatTime(i.created_at)}</td><td><b>{i.trips?.services?.code}</b></td><td>{i.profiles?.full_name}</td>
+                  <td>{INCIDENT_LABEL[i.kind]}</td><td>{i.note ?? '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </>
