@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { fold } from '../lib/text';
 
 export interface SearchOption { value: string; label: string }
 
@@ -16,8 +17,8 @@ export function SearchSelect({ options, value, onChange, placeholder = 'Buscar..
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
-  const needle = text.trim().toLocaleLowerCase('es-AR');
-  const shown = options.filter((o) => !needle || o.label.toLocaleLowerCase('es-AR').includes(needle)).slice(0, 50);
+  const needle = fold(text);
+  const shown = options.filter((o) => !needle || fold(o.label).includes(needle)).slice(0, 50);
   const pick = (v: string) => { onChange(v); setOpen(false); setText(''); };
   return (
     <div className="search-select" ref={box}>

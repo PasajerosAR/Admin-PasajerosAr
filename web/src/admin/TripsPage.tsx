@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
 import { Loading, Notice, formatTime, todayLocal } from '../ui';
+import { fold } from '../lib/text';
 import { useAuth } from '../auth/AuthProvider';
 import { INCIDENT_LABEL, STATUS_LABEL, type IncidentKind, type Profile, type TripStatus, type Vehicle } from '../lib/types';
 import { DAY_TYPES, DAY_TYPE_LABEL, dayTypeOf, type DayType } from '../lib/dayType';
@@ -144,9 +145,9 @@ export function TripsPage() {
   const filteredTrips = (trips.data ?? []).filter((trip) => {
     if (statusFilter !== 'all' && trip.status !== statusFilter) return false;
     if (assignmentFilter === 'pending' && trip.vehicle_id && trip.driver_id) return false;
-    const needle = search.trim().toLocaleLowerCase('es-AR');
+    const needle = fold(search);
     return !needle || [trip.services?.code, trip.service_departures?.routes?.name]
-      .some((value) => value?.toLocaleLowerCase('es-AR').includes(needle));
+      .some((value) => fold(value).includes(needle));
   }).sort((a, b) => sortBy === 'service'
     ? collator.compare(a.services?.code ?? '', b.services?.code ?? '') || a.scheduled_departure.localeCompare(b.scheduled_departure)
     : a.scheduled_departure.localeCompare(b.scheduled_departure) || collator.compare(a.services?.code ?? '', b.services?.code ?? ''));

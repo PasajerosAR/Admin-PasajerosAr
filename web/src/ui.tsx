@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { fold } from './lib/text';
 
 export function Notice({ kind = 'error', children }: { kind?: 'error' | 'warn' | 'ok'; children: ReactNode }) {
   return <div className={`notice ${kind}`} role={kind === 'error' ? 'alert' : 'status'}>{children}</div>;
@@ -53,6 +54,6 @@ export function FilterBox({ value, onChange, placeholder = 'Buscar...' }: { valu
   return <input className="filter-box" type="search" placeholder={placeholder} aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />;
 }
 export const matches = (needle: string, ...fields: (string | number | null | undefined)[]): boolean => {
-  const n = needle.trim().toLocaleLowerCase('es-AR');
-  return !n || fields.some((f) => String(f ?? '').toLocaleLowerCase('es-AR').includes(n));
+  const n = fold(needle);
+  return !n || fields.some((f) => fold(f).includes(n));
 };

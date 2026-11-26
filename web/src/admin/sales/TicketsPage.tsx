@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { must, useQuery } from '../../lib/useQuery';
 import { Loading, Notice, formatDateTime, formatTime, todayLocal } from '../../ui';
+import { fold } from '../../lib/text';
 import type { PaymentMethod, SaleTicket } from '../../lib/types';
 import { PAYMENT_METHOD_LABEL, TICKET_STATUS_LABEL } from '../../lib/types';
 import { RefundModal } from './RefundModal';
@@ -80,11 +81,11 @@ export function TicketsPage() {
 
   const filtered = (tickets.data ?? []).filter((t) => {
     if (!search) return true;
-    const s = search.toLowerCase();
+    const s = fold(search);
     return (
-      t.passenger_name.toLowerCase().includes(s) ||
+      fold(t.passenger_name).includes(s) ||
       t.passenger_dni.includes(s) ||
-      t.passenger_email.toLowerCase().includes(s) ||
+      fold(t.passenger_email).includes(s) ||
       t.qr_code.includes(s)
     );
   });

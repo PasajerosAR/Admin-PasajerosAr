@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
 import { Loading, Notice } from '../ui';
+import { fold } from '../lib/text';
 import type { Company } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 import { COMPANY_FEATURES, featureLabel } from '../lib/features';
@@ -127,9 +128,9 @@ export function CompaniesPage() {
     companies.reload();
   };
 
-  const needle = search.trim().toLocaleLowerCase('es-AR');
+  const needle = fold(search);
   const list = (companies.data ?? []).filter((c) => (status === 'all' || (status === 'active') === c.active)
-    && (!needle || c.name.toLocaleLowerCase('es-AR').includes(needle)));
+    && (!needle || fold(c.name).includes(needle)));
   const selected = (companies.data ?? []).find((c) => c.id === selectedId) ?? null;
 
   const set = (k: keyof typeof EMPTY) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });

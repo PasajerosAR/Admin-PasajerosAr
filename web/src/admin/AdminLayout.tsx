@@ -5,6 +5,7 @@ import { must, useQuery } from '../lib/useQuery';
 import { supabase } from '../lib/supabase';
 import type { PlatformPermission } from '../lib/types';
 import { Notice } from '../ui';
+import { fold } from '../lib/text';
 import { ProfileMenu } from './ProfileMenu';
 
 const PLATFORM_LINKS: [string, string, boolean][] = [
@@ -112,8 +113,8 @@ export function AdminLayout() {
       : profile?.role === 'support' ? 'Atención al cliente (solo lectura)'
         : profile?.role === 'seller' ? 'Ventas'
           : 'Administrador';
-  const q = query.trim().toLowerCase();
-  const shown = q ? links.filter(([, label]) => label.toLowerCase().includes(q)) : links;
+  const q = fold(query);
+  const shown = q ? links.filter(([, label]) => fold(label).includes(q)) : links;
   // sección actual: el enlace más específico que coincide con la ruta
   const current = [...links].filter(([to, , end]) => (end ? pathname === to : pathname === to || pathname.startsWith(to + '/')))
     .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ?? title;
