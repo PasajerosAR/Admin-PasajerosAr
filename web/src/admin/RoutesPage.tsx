@@ -127,86 +127,155 @@ export function RoutesPage() {
     <>
       <div className="row page-heading" style={{ alignItems: 'center' }}>
         <h1>Recorridos</h1>
-        {canEdit && <button onClick={() => open(null)}>Nuevo recorrido</button>}
+        {canEdit && <button onClick={() => open(null)}>+ Nuevo recorrido</button>}
       </div>
-      {!canEdit && <p className="muted">Estos son los recorridos de tu empresa; los carga la plataforma. Si necesitás uno nuevo o una correccion, pedilo al administrador general.</p>}
+      {!canEdit && <p className="muted">Estos son los recorridos de tu empresa; los carga la plataforma. Si necesitás uno nuevo o una corrección, pedilo al administrador general.</p>}
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 
       {editing && (
-        <section className="card stack" aria-label="Editar recorrido">
-          <h2>{editing === 'nuevo' ? 'Nuevo recorrido' : 'Editar recorrido'}</h2>
-          <label>Empresa dueña del recorrido
-            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
-              <option value="">Elegir empresa...</option>
-              {(companies.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Paraná - Santa Fe" /></label>
-          {inUse && editing !== 'nuevo' && <p className="muted">Este recorrido ya tiene servicios: no se puede cambiar el orden ni la cantidad de paradas, solo corregir nombres, localidades y coordenadas.</p>}
+        <section className="card route-editor" aria-label="Editar recorrido">
+          <div className="route-editor-header">
+            <h2>{editing === 'nuevo' ? 'Nuevo recorrido' : 'Editar recorrido'}</h2>
+          </div>
+
+          {/* Campos principales en fila compacta */}
+          <div className="row" style={{ alignItems: 'flex-end', gap: 10 }}>
+            <label style={{ flex: '1 1 240px', maxWidth: 320 }}>Empresa
+              <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} required>
+                <option value="">Elegir empresa…</option>
+                {(companies.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label style={{ flex: '1 1 240px', maxWidth: 360 }}>Nombre del recorrido
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Paraná - Santa Fe" />
+            </label>
+          </div>
+
+          {inUse && editing !== 'nuevo' && (
+            <p className="muted route-locked-notice">
+              <span>⚠</span> Este recorrido ya tiene servicios: solo se pueden corregir nombres, localidades y coordenadas.
+            </p>
+          )}
+
+          {/* Tabla de paradas */}
           <div className="table-wrap">
-            <table>
-              <thead><tr><th>#</th><th>Parada</th><th>Localidad</th><th>Latitud</th><th>Longitud</th><th /></tr></thead>
+            <table className="stops-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 32 }}>#</th>
+                  <th>Parada</th>
+                  <th style={{ width: 160 }}>Localidad</th>
+                  <th style={{ width: 110 }}>Latitud</th>
+                  <th style={{ width: 110 }}>Longitud</th>
+                  <th style={{ width: 100 }} />
+                </tr>
+              </thead>
               <tbody>
                 {stops.map((s, i) => (
                   <tr key={i} className={sel === i ? 'sel-row' : ''} onClick={() => setSel(i)}>
-                    <td>{i + 1}</td>
+                    <td style={{ color: 'var(--muted)', fontWeight: 700, fontSize: 12 }}>{i + 1}</td>
                     <td>
-                      <input aria-label={`Parada ${i + 1}`} value={s.name} onChange={(e) => patch(i, { name: e.target.value })} />
-                      <span className="muted" style={{ fontSize: 12 }}>{i === 0 ? 'Origen' : i === stops.length - 1 ? 'Destino' : 'Intermedia: el servicio pasa por acá'}</span>
+                      <input aria-label={`Parada ${i + 1}`} value={s.name} onChange={(e) => patch(i, { name: e.target.value })}
+                        placeholder={i === 0 ? 'Terminal de origen…' : i === stops.length - 1 ? 'Terminal de destino…' : 'Parada intermedia…'} />
+                      <span className="stop-role-badge">
+                        {i === 0 ? 'Origen' : i === stops.length - 1 ? 'Destino' : 'Intermedia'}
+                      </span>
                     </td>
                     <td>
                       <select aria-label={`Localidad de la parada ${i + 1}`} value={s.place_id} onChange={(e) => patch(i, { place_id: e.target.value })}>
-                        <option value="">Elegir...</option>
+                        <option value="">Sin localidad</option>
                         {(places.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </td>
                     <td><input aria-label="Latitud" inputMode="decimal" value={s.lat} onChange={(e) => patch(i, { lat: e.target.value })} placeholder="-31.7333" /></td>
                     <td><input aria-label="Longitud" inputMode="decimal" value={s.lng} onChange={(e) => patch(i, { lng: e.target.value })} placeholder="-60.5236" /></td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button type="button" className="secondary" aria-label={`Subir la parada ${i + 1}`} title="Subir" disabled={inUse || i === 0} onClick={(e) => { e.stopPropagation(); moveStop(i, i - 1); }}>↑</button>{' '}
-                      <button type="button" className="secondary" aria-label={`Bajar la parada ${i + 1}`} title="Bajar" disabled={inUse || i === stops.length - 1} onClick={(e) => { e.stopPropagation(); moveStop(i, i + 1); }}>↓</button>{' '}
-                      <button type="button" className="danger" disabled={stops.length <= 2} onClick={() => { setStops(stops.filter((_, j) => j !== i)); setVia([]); setSel(null); }}>Quitar</button>
+                    <td>
+                      <div className="stop-actions">
+                        <button type="button" className="secondary compact" aria-label={`Subir parada ${i + 1}`} title="Subir" disabled={inUse || i === 0}
+                          onClick={(e) => { e.stopPropagation(); moveStop(i, i - 1); }}>↑</button>
+                        <button type="button" className="secondary compact" aria-label={`Bajar parada ${i + 1}`} title="Bajar" disabled={inUse || i === stops.length - 1}
+                          onClick={(e) => { e.stopPropagation(); moveStop(i, i + 1); }}>↓</button>
+                        <button type="button" className="danger compact" disabled={stops.length <= 2}
+                          onClick={() => { setStops(stops.filter((_, j) => j !== i)); setVia([]); setSel(null); }}>✕</button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="row" style={{ alignItems: 'center' }}>
-            <button type="button" className={mode === 'stop' ? '' : 'secondary'} aria-pressed={mode === 'stop'} onClick={() => setMode('stop')}>Ubicar paradas</button>
-            <button type="button" className="secondary" onClick={() => { setStops([...stops, blankStop()]); setSel(stops.length); setMode('stop'); }}>Agregar parada</button>
-            <button type="button" className={mode === 'via' ? '' : 'secondary'} aria-pressed={mode === 'via'} onClick={() => setMode('via')}>Agregar puntos de paso</button>
-            {via.length > 0 && <button type="button" className="secondary" onClick={() => setVia([])}>{via.length === 1 ? "Quitar el punto de paso" : `Quitar los ${via.length} puntos de paso`}</button>}
-            <span className="muted" style={{ flex: '1 1 200px' }} role="status">
-              {trace === 'tracing' ? 'Trazando por las calles...' : trace === 'ok' ? 'Recorrido trazado por las calles.'
-                : trace === 'error' ? 'No se pudo trazar. Se guardará sin trazado; podés reintentar.' : waypoints ? '' : 'Ubicá todas las paradas para trazar el recorrido.'}
+
+          {/* Barra de herramientas del mapa */}
+          <div className="map-toolbar">
+            <div className="map-toolbar-left">
+              <button type="button" className={mode === 'stop' ? '' : 'secondary'} aria-pressed={mode === 'stop'} onClick={() => setMode('stop')}>
+                📍 Ubicar paradas
+              </button>
+              <button type="button" className="secondary" onClick={() => { setStops([...stops, blankStop()]); setSel(stops.length); setMode('stop'); }}>
+                + Agregar parada
+              </button>
+              <button type="button" className={mode === 'via' ? '' : 'secondary'} aria-pressed={mode === 'via'} onClick={() => setMode('via')}>
+                〰 Puntos de paso
+              </button>
+              {via.length > 0 && (
+                <button type="button" className="secondary compact" onClick={() => setVia([])}>
+                  Quitar {via.length === 1 ? 'punto' : `${via.length} puntos`}
+                </button>
+              )}
+            </div>
+            <span className={`trace-status trace-${trace}`} role="status">
+              {trace === 'tracing' && '⏳ Trazando…'}
+              {trace === 'ok' && '✓ Trazado por calles'}
+              {trace === 'error' && '✕ No se pudo trazar'}
+              {trace === 'idle' && !waypoints && 'Ubicá todas las paradas para trazar'}
             </span>
-            {trace === 'error' && <button type="button" className="secondary" onClick={retrace}>Reintentar trazado</button>}
+            {trace === 'error' && <button type="button" className="secondary compact" onClick={retrace}>Reintentar</button>}
           </div>
+
           <StopMap stops={stops} selected={sel} onPick={(i, lat, lng) => patch(i, { lat: String(lat), lng: String(lng) })}
             path={path} via={via} mode={mode} onAddVia={addVia} onMoveVia={moveVia} onRemoveVia={removeVia} />
-          <div className="row">
-            <button onClick={save}>Guardar recorrido</button>
-            <button className="secondary" onClick={() => setEditing(null)}>Cancelar</button>
+
+          <div className="route-editor-footer">
+            <div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+              <button onClick={save}>Guardar recorrido</button>
+              <button className="secondary" onClick={() => setEditing(null)}>Cancelar</button>
+            </div>
+            <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+              Primera parada = origen · Última = destino · Intermedias = paradas de paso. Los tiempos los define la empresa en sus servicios.
+            </p>
           </div>
-          <p className="muted">La primera parada es el origen y la última el destino; las del medio son lugares por donde el servicio pasa. Si el camino calculado no es el que hace la combi, agregá puntos de paso para forzarlo. El recorrido es exclusivo de la empresa elegida. Los tiempos entre paradas los define la empresa en sus servicios. Si ya hay servicios con este recorrido, solo se pueden corregir nombres, localidades y coordenadas.</p>
         </section>
       )}
 
       <div className="card table-wrap">
-        <FilterBox value={q} onChange={setQ} placeholder="Buscar recorrido" />
+        <div className="routes-list-header">
+          <FilterBox value={q} onChange={setQ} placeholder="Buscar recorrido…" />
+        </div>
         {routes.loading ? <Loading /> : (
           <table>
-            <thead><tr><th>Recorrido</th>{canEdit && <th>Empresa</th>}<th>Origen → destino</th><th>Paradas</th><th /></tr></thead>
+            <thead>
+              <tr>
+                <th>Recorrido</th>
+                {canEdit && <th>Empresa</th>}
+                <th>Origen → Destino</th>
+                <th>Paradas</th>
+                <th />
+              </tr>
+            </thead>
             <tbody>
-              {(routes.data ?? []).filter((r) => matches(q, r.name)).length === 0 && <tr><td colSpan={5} className="muted">{(routes.data ?? []).length === 0 ? 'Todavía no hay recorridos.' : 'Ningún recorrido coincide.'}</td></tr>}
+              {(routes.data ?? []).filter((r) => matches(q, r.name)).length === 0 && (
+                <tr><td colSpan={5} className="muted">{(routes.data ?? []).length === 0 ? 'Todavía no hay recorridos.' : 'Ningún recorrido coincide.'}</td></tr>
+              )}
               {(routes.data ?? []).filter((r) => matches(q, r.name)).map((r) => (
                 <tr key={r.id}>
                   <td><b>{r.name}</b></td>
-                  {canEdit && <td>{r.company_id ? companyName(r.company_id) : <span className="pill warn">Sin asignar</span>}</td>}
-                  <td>{r.origin_place_id ? `${placeName(r.origin_place_id) ?? '-'} → ${placeName(r.destination_place_id) ?? '-'}` : <span className="pill warn">Falta localidad</span>}</td>
-                  <td>{stopsOf(r.id).map((s) => s.name).join(' > ')}</td>
-                  <td>{canEdit && <button className="secondary" onClick={() => open(r)}>Editar</button>}</td>
+                  {canEdit && <td>{r.company_id ? <span className="pill info">{companyName(r.company_id)}</span> : <span className="pill warn">Sin asignar</span>}</td>}
+                  <td>{r.origin_place_id
+                    ? <span className="route-od">{placeName(r.origin_place_id) ?? '-'} <span className="route-arrow">→</span> {placeName(r.destination_place_id) ?? '-'}</span>
+                    : <span className="pill warn">Falta localidad</span>}
+                  </td>
+                  <td className="stops-preview">{stopsOf(r.id).map((s) => s.name).join(' › ')}</td>
+                  <td>{canEdit && <button className="secondary compact" onClick={() => open(r)}>Editar</button>}</td>
                 </tr>
               ))}
             </tbody>

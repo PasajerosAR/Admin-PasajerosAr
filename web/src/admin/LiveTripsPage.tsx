@@ -222,16 +222,17 @@ export function LiveTripsPage() {
     <>
       <h1>Seguimiento GPS</h1>
       <p className="muted" style={{ margin: 0 }}>Posición actual de los viajes en curso. Se actualiza cada 15 segundos; no se guarda un historial de ubicaciones.</p>
-      <div className="row">
+      <div className="row" style={{ alignItems: 'flex-end' }}>
         {platformAdmin && (
-          <label>Empresa
+          <label style={{ maxWidth: 260 }}>Empresa
             <select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               <option value="">Todas las empresas</option>
               {(companies.data ?? []).map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
             </select>
           </label>
         )}
-        <button className="secondary" onClick={trips.reload}>Actualizar ahora</button>
+        <button className="secondary compact" style={{ flex: '0 0 auto' }} onClick={trips.reload}>Actualizar ahora</button>
+        {(trips.loading || schedules.loading) && trips.data && <span className="muted" role="status" style={{ fontSize: 12 }}>Actualizando…</span>}
       </div>
       <div className="gps-cards" aria-label="Estado de los servicios">
         {CARDS.map(([flag, label]) => (
@@ -241,42 +242,56 @@ export function LiveTripsPage() {
           </button>
         ))}
       </div>
-      {profile?.role === 'company_admin' && <GpsAlerts alerts={autoAlerts} selectedTripId={activeSelectedId} selectedLabel={selectedLabel} tick={refreshTick} />}
       {companies.error && <Notice>{companies.error}</Notice>}
       {trips.error && <Notice>{trips.error}</Notice>}
       {schedules.error && <Notice>{schedules.error}</Notice>}
-      <div className="card">
-        {(trips.loading || schedules.loading) && !trips.data ? <Loading /> : rows.length === 0
-          ? <p className="muted" role="status">No hay servicios en curso para esta selección.</p>
-          : <LiveTripsMap trips={shown} selectedId={activeSelectedId} onSelect={setSelectedId} />}
-      </div>
-      {(trips.loading || schedules.loading) && trips.data && <p className="muted" role="status">Actualizando posiciones…</p>}
-      {rows.length > 0 && (
-        <div className="live-trip-list" aria-label="Servicios en curso">
-          {shown.map((trip) => (
-            <button key={trip.trip_id} type="button" className={`card live-trip-card${trip.trip_id === activeSelectedId ? ' selected' : ''}`}
-              aria-pressed={trip.trip_id === activeSelectedId} onClick={() => setSelectedId(trip.trip_id)}>
-              <span><b>{trip.company_name} · Servicio #{trip.service_code}</b><br />{trip.route_name}</span>
-              <span><b>{trip.vehicle_number ? `Interno ${trip.vehicle_number}` : 'Sin unidad'}</b>{trip.vehicle_plate ? ` · Patente ${trip.vehicle_plate}` : ''}<br />{trip.driver_name ?? 'Sin conductor'}</span>
-              <span><span className={`pill ${punctuality(trip).kind}`}>{punctuality(trip).text}</span><br />
-                <small>{locationStatus(trip)} · salida {formatTime(trip.scheduled_departure)}</small></span>
-            </button>
-          ))}
+
+      <div className="gps-layout">
+        {/* Columna izquierda: avisos, lista de servicios, detalle */}
+        <div className="gps-left">
+          {profile?.role === 'company_admin' && <GpsAlerts alerts={autoAlerts} selectedTripId={activeSelectedId} selectedLabel={selectedLabel} tick={refreshTick} />}
+          {rows.length === 0 && !(trips.loading || schedules.loading) && (
+            <div className="card"><p className="muted" role="status">No hay servicios en curso para esta selección.</p></div>
+          )}
+          {rows.length > 0 && (
+            <div className="live-trip-list" aria-label="Servicios en curso">
+              {shown.map((trip) => (
+                <button key={trip.trip_id} type="button" className={`card live-trip-card${trip.trip_id === activeSelectedId ? ' selected' : ''}`}
+                  aria-pressed={trip.trip_id === activeSelectedId} onClick={() => setSelectedId(trip.trip_id)}>
+                  <span><b>{trip.company_name} · Servicio #{trip.service_code}</b><br />{trip.route_name}</span>
+                  <span><b>{trip.vehicle_number ? `Interno ${trip.vehicle_number}` : 'Sin unidad'}</b>{trip.vehicle_plate ? ` · ${trip.vehicle_plate}` : ''}<br />{trip.driver_name ?? 'Sin conductor'}</span>
+                  <span><span className={`pill ${punctuality(trip).kind}`}>{punctuality(trip).text}</span><br />
+                    <small>{locationStatus(trip)}</small></span>
+                </button>
+              ))}
+            </div>
+          )}
+          {selected && (
+            <section className="card live-trip-detail" aria-label="Detalle del servicio seleccionado">
+              <h2>{selected.company_name} · Servicio #{selected.service_code}</h2>
+              <div className="live-trip-detail-grid">
+                <div><span className="muted">Recorrido</span><b>{selected.route_name}</b></div>
+                <div><span className="muted">Unidad</span><b>{selected.vehicle_number ? `Interno ${selected.vehicle_number}` : 'Sin asignar'}{selected.vehicle_plate ? ` · ${selected.vehicle_plate}` : ''}</b></div>
+                <div><span className="muted">Conductor</span><b>{selected.driver_name ?? 'Sin asignar'}</b></div>
+                <div><span className="muted">Puntualidad</span><b><span className={`pill ${punctuality(selected).kind}`}>{punctuality(selected).text}</span></b></div>
+                <div><span className="muted">Salida</span><b>{formatTime(selected.scheduled_departure)}</b></div>
+                <div><span className="muted">GPS</span><b>{locationStatus(selected)}</b></div>
+              </div>
+            </section>
+          )}
         </div>
-      )}
-      {selected && (
-        <section className="card live-trip-detail" aria-label="Detalle del servicio seleccionado">
-          <h2>{selected.company_name} · Servicio #{selected.service_code}</h2>
-          <div className="live-trip-detail-grid">
-            <div><span className="muted">Recorrido</span><b>{selected.route_name}</b></div>
-            <div><span className="muted">Unidad</span><b>{selected.vehicle_number ? `Interno ${selected.vehicle_number}` : 'Sin asignar'}{selected.vehicle_plate ? ` · Patente ${selected.vehicle_plate}` : ''}</b></div>
-            <div><span className="muted">Conductor</span><b>{selected.driver_name ?? 'Sin asignar'}</b></div>
-            <div><span className="muted">Puntualidad</span><b><span className={`pill ${punctuality(selected).kind}`}>{punctuality(selected).text}</span></b></div>
-            <div><span className="muted">Salida programada</span><b>{formatTime(selected.scheduled_departure)}</b></div>
-            <div><span className="muted">GPS</span><b>{locationStatus(selected)}</b></div>
+
+        {/* Columna derecha: mapa sticky */}
+        <div className="gps-right">
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {(trips.loading || schedules.loading) && !trips.data
+              ? <div style={{ padding: 14 }}><Loading /></div>
+              : rows.length === 0
+                ? <p className="muted" style={{ padding: 14, margin: 0 }} role="status">Sin servicios en curso.</p>
+                : <LiveTripsMap trips={shown} selectedId={activeSelectedId} onSelect={setSelectedId} />}
           </div>
-        </section>
-      )}
+        </div>
+      </div>
     </>
   );
 }
