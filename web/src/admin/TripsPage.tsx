@@ -352,8 +352,8 @@ export function TripsPage() {
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
               // si no hay viajes, se abre automáticamente para mostrar el mensaje de "no hay salidas"
-                open={openGroups[group.key] ?? (groupBy === 'none')}
-                
+                open={openGroups[group.key] ?? groupBy === 'none'}
+
                 onToggle={(event) => {
                   const isOpen = event.currentTarget.open;
                   setOpenGroups((current) => current[group.key] === isOpen ? current : { ...current, [group.key]: isOpen });
