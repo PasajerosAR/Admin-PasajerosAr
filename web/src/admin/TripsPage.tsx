@@ -115,6 +115,12 @@ export function TripsPage() {
     if (error) setMsg({ kind: 'error', text: friendly(error) });
     else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados.` }); trips.reload(); }
   };
+  const publishAll = async () => {
+    if (!window.confirm('¿Publicar todos los viajes programados sin publicar de la empresa, para cualquier fecha y tipo de día? Desde ese momento los pasajeros pueden verlos y comprar.')) return;
+    const { data, error } = await supabase.rpc('publish_all_trips');
+    if (error) setMsg({ kind: 'error', text: friendly(error) });
+    else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados en total.` }); trips.reload(); }
+  };
   const generate = async () => {
     // si el día ya tiene viajes de otro tipo (ej. feriado y ahora hábil), se avisa y se reemplazan
     const { data: preview, error } = await supabase.rpc('generate_trips_preview', { p_date: date, p_day_type: dayType });
@@ -225,9 +231,12 @@ export function TripsPage() {
         <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
         {canEdit && <label style={{ flex: '0 0 130px' }}>Repetir (días)<input type="number" min={1} max={60} value={days} onChange={(e) => { setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1))); setPlan(null); }} /></label>}
         {canEdit && <button className="secondary" disabled={dateBad} onClick={days > 1 ? openPlan : generate}>{days > 1 ? `Generar ${days} días` : 'Generar viajes del día'}</button>}
-        {canEdit && (days > 1
-          ? <button onClick={publishRange} disabled={dateBad}>{`Publicar ${days} días`}</button>
-          : <button onClick={publish} disabled={drafts === 0 || dateBad}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>)}
+        {canEdit && <>
+          {days > 1
+            ? <button onClick={publishRange} disabled={dateBad}>{`Publicar ${days} días`}</button>
+            : <button onClick={publish} disabled={drafts === 0 || dateBad}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>}
+          <button className="secondary" onClick={publishAll}>Publicar todos</button>
+        </>}
       </div>
       {canEdit && plan && (
         <div className="card stack">
