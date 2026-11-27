@@ -351,6 +351,7 @@ export function TripsPage() {
             ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</p>
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
+              // si no hay viajes, se abre automáticamente para mostrar el mensaje de "no hay salidas"
                 open={openGroups[group.key] ?? groupBy === 'none'}
                 onToggle={(event) => {
                   const isOpen = event.currentTarget.open;
