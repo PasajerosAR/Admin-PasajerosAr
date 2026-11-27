@@ -115,12 +115,6 @@ export function TripsPage() {
     if (error) setMsg({ kind: 'error', text: friendly(error) });
     else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados.` }); trips.reload(); }
   };
-  const publishAll = async () => {
-    if (!window.confirm('¿Publicar todos los viajes programados sin publicar de la empresa, para cualquier fecha y tipo de día? Desde ese momento los pasajeros pueden verlos y comprar.')) return;
-    const { data, error } = await supabase.rpc('publish_all_trips');
-    if (error) setMsg({ kind: 'error', text: friendly(error) });
-    else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados en total.` }); trips.reload(); }
-  };
   const generate = async () => {
     // si el día ya tiene viajes de otro tipo (ej. feriado y ahora hábil), se avisa y se reemplazan
     const { data: preview, error } = await supabase.rpc('generate_trips_preview', { p_date: date, p_day_type: dayType });
@@ -134,6 +128,13 @@ export function TripsPage() {
     }
     if (other > 0 && !window.confirm(`Ese día ya tiene ${other} viajes generados como ${names}. Se van a borrar y reemplazar por los de ${DAY_TYPE_LABEL[dayType].toLowerCase()}. ¿Continuar?`)) return;
     await run(() => supabase.rpc('generate_trips', { p_date: date, p_day_type: dayType, p_replace: other > 0 }), `Viajes generados para ${DAY_TYPE_LABEL[dayType].toLowerCase()}. Todavía no están publicados: revisalos y tocá "Publicar".`);
+  };
+  const publishAll = async () => {
+    const total = allDrafts.data ?? 0;
+    if (!window.confirm(`¿Publicar los ${total} viajes sin publicar de todas las fechas desde hoy? Desde ese momento los pasajeros pueden verlos y comprar.`)) return;
+    const { data, error } = await supabase.rpc('publish_all_trips');
+    if (error) setMsg({ kind: 'error', text: friendly(error) });
+    else { setMsg({ kind: 'ok', text: `${data as number} viajes publicados.` }); trips.reload(); }
   };
   const publish = async () => {
     if (!window.confirm(`¿Publicar ${drafts} viajes del día? Desde ese momento los pasajeros pueden verlos y comprar.`)) return;
@@ -189,6 +190,12 @@ export function TripsPage() {
     void run(() => supabase.from('trips').update({ status: 'cancelled' }).eq('id', id), 'Viaje cancelado.');
   };
 
+  // viajes sin publicar de todas las fechas desde hoy (se recalcula cada vez que cambian los viajes mostrados)
+  const allDrafts = useQuery(async () => {
+    const { count, error } = await supabase.from('trips').select('id', { count: 'exact', head: true }).is('published_at', null).eq('status', 'scheduled').gte('service_date', todayLocal());
+    if (error) throw error;
+    return count ?? 0;
+  }, [trips.data]);
   const drafts = (trips.data ?? []).filter((t) => t.status === 'scheduled' && !t.published_at).length;
   const now = Date.now();
   const alerts = (trips.data ?? []).filter((t) => t.status === 'scheduled' && new Date(t.scheduled_departure).getTime() < now);
@@ -231,12 +238,10 @@ export function TripsPage() {
         <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
         {canEdit && <label style={{ flex: '0 0 130px' }}>Repetir (días)<input type="number" min={1} max={60} value={days} onChange={(e) => { setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1))); setPlan(null); }} /></label>}
         {canEdit && <button className="secondary" disabled={dateBad} onClick={days > 1 ? openPlan : generate}>{days > 1 ? `Generar ${days} días` : 'Generar viajes del día'}</button>}
-        {canEdit && <>
-          {days > 1
-            ? <button onClick={publishRange} disabled={dateBad}>{`Publicar ${days} días`}</button>
-            : <button onClick={publish} disabled={drafts === 0 || dateBad}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>}
-          <button className="secondary" onClick={publishAll}>Publicar todos</button>
-        </>}
+        {canEdit && (days > 1
+          ? <button onClick={publishRange} disabled={dateBad}>{`Publicar ${days} días`}</button>
+          : <button onClick={publish} disabled={drafts === 0 || dateBad}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>)}
+        {canEdit && <button onClick={publishAll} disabled={(allDrafts.data ?? 0) === 0}>{(allDrafts.data ?? 0) > 0 ? `Publicar todos (${allDrafts.data})` : 'Publicar todos'}</button>}
       </div>
       {canEdit && plan && (
         <div className="card stack">
@@ -346,7 +351,7 @@ export function TripsPage() {
             ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</p>
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
-                open={openGroups[group.key] ?? groupBy === 'none'}
+                open={openGroups[group.key] ?? (groupBy === 'none' || group.trips.some((trip) => trip.status === 'in_progress' || (trip.status === 'scheduled' && new Date(trip.scheduled_departure).getTime() < now)))}
                 onToggle={(event) => {
                   const isOpen = event.currentTarget.open;
                   setOpenGroups((current) => current[group.key] === isOpen ? current : { ...current, [group.key]: isOpen });
