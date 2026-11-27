@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { fold } from './lib/text';
 
 export function Notice({ kind = 'error', children }: { kind?: 'error' | 'warn' | 'ok'; children: ReactNode }) {
@@ -70,3 +70,28 @@ export const matches = (needle: string, ...fields: (string | number | null | und
   const n = fold(needle);
   return !n || fields.some((f) => fold(f).includes(n));
 };
+
+/**
+ * Campo de fecha que no deja pasar fechas inexistentes (ej. 31/11): el navegador deja escribirlas o subir el día
+ * hasta 31 en cualquier mes y entrega el valor vacío. Mientras la fecha no exista se avisa y el valor anterior no cambia.
+ */
+export function DateInput({ value, onChange, onInvalid, required }: {
+  value: string; onChange: (value: string) => void; onInvalid?: (invalid: boolean) => void; required?: boolean;
+}) {
+  const [raw, setRaw] = useState(value);
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => { setRaw(value); setInvalid(false); onInvalid?.(false); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <input type="date" value={raw} required={required} aria-invalid={invalid}
+        onChange={(e) => {
+          const next = e.target.value;
+          setRaw(next);
+          setInvalid(next === '');
+          onInvalid?.(next === '');
+          if (next) onChange(next);
+        }} />
+      {invalid && <small style={{ color: 'var(--bad)', fontWeight: 600 }}>Esa fecha no existe. Elegí otra.</small>}
+    </>
+  );
+}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, PageHead, TimeInput, todayLocal } from '../../ui';
+import { DateInput, Loading, Notice, PageHead, TimeInput, todayLocal } from '../../ui';
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from '../../lib/types';
 import { formatMoney } from '../../lib/taquilla';
 import { useAuth } from '../../auth/AuthProvider';
@@ -51,7 +51,7 @@ export function CashClosePage() {
       {msg && <Notice kind="warn">{msg}</Notice>}
       {report.error && <Notice>{friendly(new Error(report.error))}</Notice>}
       <div className="card row no-print">
-        <label>Día<input type="date" value={day} onChange={(e) => setDay(e.target.value)} /></label>
+        <label>Día<DateInput value={day} onChange={setDay} /></label>
         <label>Desde<TimeInput value={from} onChange={setFrom} /></label>
         <label>Hasta<TimeInput value={to} onChange={setTo} /></label>
         {isAdmin && (

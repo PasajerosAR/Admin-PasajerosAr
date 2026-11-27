@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice, formatTime, todayLocal } from '../ui';
+import { DateInput, Loading, Notice, formatTime, todayLocal } from '../ui';
 import { fold } from '../lib/text';
 import { useAuth } from '../auth/AuthProvider';
 import { INCIDENT_LABEL, STATUS_LABEL, type IncidentKind, type Profile, type TripStatus, type Vehicle } from '../lib/types';
@@ -45,6 +45,7 @@ export function TripsPage() {
   const holidayNames = new Map((holidayQuery.data ?? []).map((h) => [h.holiday_date, h.name]));
   const dayType = typeOverride ?? (holidayNames.has(date) ? 'holiday' : dayTypeOf(new Date(`${date}T12:00:00`)));
   const [days, setDays] = useState(1);
+  const [dateBad, setDateBad] = useState(false); // fecha inexistente escrita a mano (ej. 31/11): no se genera ni publica
   const [plan, setPlan] = useState<PlanRow[] | null>(null);
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [groupBy, setGroupBy] = useState<'service' | 'route' | 'none'>('service');
@@ -213,7 +214,7 @@ export function TripsPage() {
     <>
       <h1>Operación del día</h1>
       <div className="row">
-        <label style={{ flex: '0 0 200px' }}>Fecha<input type="date" value={date} onChange={(e) => { setDate(e.target.value); setTypeOverride(null); }} /></label>
+        <label style={{ flex: '0 0 200px' }}>Fecha<DateInput value={date} onChange={(v) => { setDate(v); setTypeOverride(null); }} onInvalid={setDateBad} /></label>
         {canEdit && (
           <label style={{ flex: '0 0 200px' }}>Tipo de día
             <select value={dayType} onChange={(e) => setTypeOverride(e.target.value as DayType)}>
@@ -223,10 +224,10 @@ export function TripsPage() {
         )}
         <button className="secondary" onClick={() => { trips.reload(); stale.reload(); compat.reload(); }}>Actualizar</button>
         {canEdit && <label style={{ flex: '0 0 130px' }}>Repetir (días)<input type="number" min={1} max={60} value={days} onChange={(e) => { setDays(Math.min(60, Math.max(1, Number(e.target.value) || 1))); setPlan(null); }} /></label>}
-        {canEdit && <button className="secondary" onClick={days > 1 ? openPlan : generate}>{days > 1 ? `Generar ${days} días` : 'Generar viajes del día'}</button>}
+        {canEdit && <button className="secondary" disabled={dateBad} onClick={days > 1 ? openPlan : generate}>{days > 1 ? `Generar ${days} días` : 'Generar viajes del día'}</button>}
         {canEdit && (days > 1
-          ? <button onClick={publishRange}>{`Publicar ${days} días`}</button>
-          : <button onClick={publish} disabled={drafts === 0}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>)}
+          ? <button onClick={publishRange} disabled={dateBad}>{`Publicar ${days} días`}</button>
+          : <button onClick={publish} disabled={drafts === 0 || dateBad}>{drafts > 0 ? `Publicar ${drafts} viajes` : 'Publicar'}</button>)}
       </div>
       {canEdit && plan && (
         <div className="card stack">

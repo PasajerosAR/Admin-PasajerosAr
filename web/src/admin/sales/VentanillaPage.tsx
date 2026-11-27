@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
-import { Loading, Notice, PageHead, formatDateTime, formatTime, todayLocal } from '../../ui';
+import { DateInput, Loading, Notice, PageHead, formatDateTime, formatTime, todayLocal } from '../../ui';
 import type { RouteStop } from '../../lib/types';
 import {
   columnTemplate, formatMoney, priceFor, seatClassName, seatOccupied, seatState, summarize,
@@ -244,7 +244,7 @@ export function VentanillaPage() {
 
       <div className="card stack">
         <div className="row">
-          <label>Fecha<input type="date" value={date} onChange={(e) => { setDate(e.target.value); setTripId(''); }} /></label>
+          <label>Fecha<DateInput value={date} onChange={(v) => { setDate(v); setTripId(''); }} /></label>
           <label className="grow">Viaje
             <SearchSelect options={tripOptions} value={tripId} onChange={setTripId} placeholder={trips.loading ? 'Cargando...' : 'Buscar por hora, servicio o recorrido'} emptyLabel="No hay viajes para esta fecha" />
           </label>

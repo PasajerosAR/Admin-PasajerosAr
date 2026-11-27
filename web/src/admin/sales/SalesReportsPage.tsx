@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { friendly } from '../../lib/errors';
 import { must, useQuery } from '../../lib/useQuery';
 import { supabase } from '../../lib/supabase';
-import { Loading, Notice, PageHead, todayLocal } from '../../ui';
+import { DateInput, Loading, Notice, PageHead, todayLocal } from '../../ui';
 
 interface ReportRow {
   company_id?: string;
@@ -85,8 +85,8 @@ export function SalesReportsPage() {
       <PageHead title="Reportes de ventas" />
       <div className="toolbar">
         <div className="filters">
-          <label>Desde<input type="date" value={from} onChange={(e) => setRange(e.target.value, to)} /></label>
-          <label>Hasta<input type="date" value={to} onChange={(e) => setRange(from, e.target.value)} /></label>
+          <label>Desde<DateInput value={from} onChange={(v) => setRange(v, to)} /></label>
+          <label>Hasta<DateInput value={to} onChange={(v) => setRange(from, v)} /></label>
           <button className="secondary" onClick={exportCsv} disabled={report.loading || rows.length === 0}>Descargar CSV</button>
         </div>
       </div>
