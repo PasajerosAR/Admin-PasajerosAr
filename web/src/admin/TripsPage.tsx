@@ -351,7 +351,7 @@ export function TripsPage() {
             ? <p className="muted">{(trips.data ?? []).length === 0 ? 'No hay viajes para esta fecha. Generá los viajes del día y después publicalos.' : 'No hay salidas que coincidan con los filtros.'}</p>
             : groups.map((group) => (
               <details key={group.key} className="operation-group"
-                open={openGroups[group.key] ?? (groupBy === 'none' || group.trips.some((trip) => trip.status === 'in_progress' || (trip.status === 'scheduled' && new Date(trip.scheduled_departure).getTime() < now)))}
+                open={openGroups[group.key] ?? groupBy === 'none'}
                 onToggle={(event) => {
                   const isOpen = event.currentTarget.open;
                   setOpenGroups((current) => current[group.key] === isOpen ? current : { ...current, [group.key]: isOpen });
