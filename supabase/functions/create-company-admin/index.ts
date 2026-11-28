@@ -52,12 +52,12 @@ Deno.serve(async (req) => {
     }
 
     const { error: e2 } = await admin.from('profiles').insert({
-      id: created.user.id, company_id: company.id, role: 'company_admin', full_name, legajo: String(b.legajo ?? '').trim() || null
+      id: created.user.id, company_id: company.id, role: 'company_admin', full_name, legajo: String(b.legajo ?? '').trim() || null, username: String(b.username ?? '').trim() || null
     });
     if (e2) {
       await admin.auth.admin.deleteUser(created.user.id);
       await admin.from('companies').delete().eq('id', company.id);
-      return json({ error: e2.code === '23505' ? 'Ese legajo ya lo tiene otra persona.' : e2.message }, 400);
+      return json({ error: e2.code === '23505' ? 'Ese legajo o ese usuario ya lo tiene otra persona de la empresa.' : e2.code === '23514' ? 'El usuario solo puede tener letras, números, punto, guion y guion bajo, sin espacios (hasta 30).' : e2.message }, 400);
     }
     return json({ id: company.id });
   } catch (e) {

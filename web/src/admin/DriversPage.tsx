@@ -5,9 +5,10 @@ import { must, useQuery } from '../lib/useQuery';
 import { FilterBox, Loading, Notice, PageHead, matches } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import type { Profile } from '../lib/types';
+import { changePasswordFor, changeUsername } from '../lib/userAdmin';
 import { BulkBar, HeadCheck, RowCheck, confirmDelete, useBulk } from './bulk';
 
-const EMPTY = { full_name: '', legajo: '', email: '', password: '', dni: '', phone: '' };
+const EMPTY = { full_name: '', legajo: '', username: '', email: '', password: '', dni: '', phone: '' };
 
 export function DriversPage() {
   const { profile } = useAuth();
@@ -49,6 +50,8 @@ export function DriversPage() {
     drivers.reload();
   };
 
+  const act = async (p: Promise<{ kind: 'error' | 'ok'; text: string } | null>) => { const m = await p; if (m) { setMsg(m); if (m.kind === 'ok') drivers.reload(); } };
+
   const editLegajo = async (d: Profile) => {
     const value = window.prompt(`Legajo de ${d.full_name}:`, d.legajo ?? '');
     if (value === null) return;
@@ -57,7 +60,7 @@ export function DriversPage() {
   };
 
   const [q, setQ] = useState('');
-  const visible = (drivers.data ?? []).filter((d) => matches(q, d.full_name, d.legajo, d.dni, d.phone));
+  const visible = (drivers.data ?? []).filter((d) => matches(q, d.full_name, d.legajo, d.username, d.dni, d.phone));
 
   const bulk = useBulk(visible.map((d) => d.id));
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -92,6 +95,7 @@ export function DriversPage() {
           <div className="form-grid">
             <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
             <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
+            <label>Usuario (opcional)<input value={form.username} onChange={set('username')} maxLength={30} autoCapitalize="none" spellCheck={false} /></label>
             <label>DNI<input value={form.dni} onChange={set('dni')} inputMode="numeric" /></label>
             <label>Teléfono<input value={form.phone} onChange={set('phone')} inputMode="tel" /></label>
             <label>Correo (usuario)<input type="email" value={form.email} onChange={set('email')} required /></label>
@@ -108,15 +112,15 @@ export function DriversPage() {
         <div className="table-wrap">
           {drivers.loading ? <Loading /> : (
             <table>
-              <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Nombre</th><th>Legajo</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
+              <thead><tr>{canEdit && <HeadCheck bulk={bulk} />}<th>Nombre</th><th>Legajo</th><th>Usuario</th><th>DNI</th><th>Teléfono</th><th>Estado</th><th /></tr></thead>
               <tbody>
-                {visible.length === 0 && <tr><td colSpan={7} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
+                {visible.length === 0 && <tr><td colSpan={8} className="muted">{(drivers.data ?? []).length === 0 ? 'Todavía no hay conductores.' : 'Ningún conductor coincide.'}</td></tr>}
                 {visible.map((d) => (
                   <tr key={d.id}>
                     {canEdit && <RowCheck bulk={bulk} id={d.id} />}
-                    <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
+                    <td><b>{d.full_name}</b></td><td>{d.legajo ?? '-'}</td><td>{d.username ?? '-'}</td><td>{d.dni ?? '-'}</td><td>{d.phone ?? '-'}</td>
                     <td>{d.active ? <span className="pill ok">Activo</span> : <span className="pill warn">Inactivo</span>}</td>
-                    <td className="td-actions">{canEdit && <><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></>}</td>
+                    <td className="td-actions">{canEdit && <><button className="secondary" onClick={() => editLegajo(d)}>Legajo</button><button className="secondary" onClick={() => void act(changeUsername(d))}>Usuario</button><button className="secondary" onClick={() => void act(changePasswordFor(d))}>Clave</button><button className="secondary" onClick={() => toggle(d)}>{d.active ? 'Desactivar' : 'Activar'}</button><button className="danger" onClick={() => remove(d)}>Eliminar</button></>}</td>
                   </tr>
                 ))}
               </tbody>

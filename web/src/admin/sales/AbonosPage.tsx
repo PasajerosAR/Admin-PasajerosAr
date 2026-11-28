@@ -226,7 +226,7 @@ export function AbonosPage() {
                 </table></div>
                 <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
                   <legend>Franjas en las que vale el abono</legend>
-                  <div className="row">
+                  <div className="row no-wrap">
                     {codes.map((t) => (
                       <label key={t} title={bandLabel(t)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <input type="checkbox" style={{ width: 20, minHeight: 20 }} checked={genDays.includes(t)}
@@ -262,7 +262,7 @@ export function AbonosPage() {
                       <td><input type="number" min={0} aria-label="Precio" style={{ width: '7rem' }} value={e?.price ?? String(p.price)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, price: ev.target.value } })} /></td>
                       <td><input type="number" min={1} max={365} aria-label="Días de vigencia" style={{ width: '5rem' }} value={e?.valid_days ?? String(p.valid_days)} onChange={(ev) => setEdit({ ...edit, [p.id]: { ...e, valid_days: ev.target.value } })} /></td>
                       <td>
-                        <div className="row" style={{ gap: 8 }}>
+                        <div className="row no-wrap" style={{ gap: 8 }}>
                           {codes.map((t) => {
                             const cur = e?.day_types ?? p.day_types;
                             return (

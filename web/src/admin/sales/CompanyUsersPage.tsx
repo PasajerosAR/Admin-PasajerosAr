@@ -5,8 +5,9 @@ import { must, useQuery } from '../../lib/useQuery';
 import { FilterBox, Loading, Notice, PageHead, matches } from '../../ui';
 import { useAuth } from '../../auth/AuthProvider';
 import type { Profile } from '../../lib/types';
+import { changePasswordFor, changeUsername } from '../../lib/userAdmin';
 
-const EMPTY = { full_name: '', legajo: '', dni: '', email: '', phone: '', password: '', role: 'seller' as 'seller' | 'company_admin' };
+const EMPTY = { full_name: '', legajo: '', username: '', dni: '', email: '', phone: '', password: '', role: 'seller' as 'seller' | 'company_admin' };
 
 export function CompanyUsersPage() {
   const [q, setQ] = useState('');
@@ -15,6 +16,7 @@ export function CompanyUsersPage() {
   const [msg, setMsg]   = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const company = useQuery(async () => profile?.company_id ? must(await supabase.from('companies').select('slug').eq('id', profile.company_id).single()) as { slug: string } : null, [profile?.company_id]);
   const users = useQuery(async () =>
     must(await supabase
       .from('profiles')
@@ -39,6 +41,8 @@ export function CompanyUsersPage() {
     users.reload();
   };
 
+  const act = async (p: Promise<{ kind: 'error' | 'ok'; text: string } | null>) => { const m = await p; if (m) { setMsg(m); if (m.kind === 'ok') users.reload(); } };
+
   const toggleActive = async (u: Profile) => {
     if (u.id === profile?.id) {
       setMsg({ kind: 'error', text: 'No podés desactivar tu propio usuario.' });
@@ -56,7 +60,7 @@ export function CompanyUsersPage() {
       <PageHead title="Usuarios internos" />
       <p className="muted">
         Administradores y vendedores de tu empresa. Los vendedores tienen acceso completo
-        a ventas, devoluciones y QR de cortesía. Todo queda registrado para auditoría.
+        a ventas, devoluciones y QR de cortesía. Todo queda registrado para auditoría. Para ingresar con usuario, la persona escribe su usuario y el código de la empresa{company.data?.slug ? <>: <b>{company.data.slug}</b></> : ''}; con el correo no hace falta código.
       </p>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 
@@ -65,6 +69,7 @@ export function CompanyUsersPage() {
         <div className="row">
           <label>Nombre y apellido<input value={form.full_name} onChange={set('full_name')} required /></label>
           <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
+          <label>Usuario (opcional)<input value={form.username} onChange={set('username')} maxLength={30} autoCapitalize="none" spellCheck={false} /></label>
           <label>DNI<input value={form.dni} onChange={set('dni')} inputMode="numeric" required /></label>
           <label>Teléfono<input value={form.phone} onChange={set('phone')} inputMode="tel" required /></label>
         </div>
@@ -87,15 +92,16 @@ export function CompanyUsersPage() {
         {users.loading ? <Loading /> : (
           <table>
             <thead>
-              <tr><th>Nombre</th><th>DNI</th><th>Teléfono</th><th>Correo</th><th>Rol</th><th>Estado</th><th /></tr>
+              <tr><th>Nombre</th><th>Usuario</th><th>DNI</th><th>Teléfono</th><th>Correo</th><th>Rol</th><th>Estado</th><th /></tr>
             </thead>
             <tbody>
-              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.dni, u.legajo, u.phone)).length === 0 && (
-                <tr><td colSpan={7} className="muted">{(users.data ?? []).length === 0 ? 'Todavía no hay usuarios internos.' : 'Ningún usuario coincide.'}</td></tr>
+              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.username, u.dni, u.legajo, u.phone)).length === 0 && (
+                <tr><td colSpan={8} className="muted">{(users.data ?? []).length === 0 ? 'Todavía no hay usuarios internos.' : 'Ningún usuario coincide.'}</td></tr>
               )}
-              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.dni, u.legajo, u.phone)).map((u) => (
+              {(users.data ?? []).filter((u) => matches(q, u.full_name, u.username, u.dni, u.legajo, u.phone)).map((u) => (
                 <tr key={u.id}>
                   <td><b>{u.full_name}</b>{u.id === profile?.id && <span className="muted"> (vos)</span>}</td>
+                  <td>{u.username ?? '-'}</td>
                   <td>{u.dni ?? '-'}</td>
                   <td>{u.phone ?? '-'}</td>
                   <td className="muted" style={{ fontSize: 12 }}>{/* email no está en profiles, se gestiona via auth */}—</td>
@@ -111,11 +117,13 @@ export function CompanyUsersPage() {
                     }
                   </td>
                   <td>
-                    {u.id !== profile?.id && (
+                    <button className="secondary" onClick={() => void act(changeUsername(u))}>Usuario</button>{' '}
+                    {u.id !== profile?.id && (<>
+                      <button className="secondary" onClick={() => void act(changePasswordFor(u))}>Clave</button>{' '}
                       <button className="secondary" onClick={() => toggleActive(u)}>
                         {u.active ? 'Desactivar' : 'Activar'}
                       </button>
-                    )}
+                    </>)}
                   </td>
                 </tr>
               ))}

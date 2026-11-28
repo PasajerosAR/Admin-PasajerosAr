@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuth } from './auth/AuthProvider';
 import { Login } from './auth/Login';
+import { SetNewPassword } from './auth/SetNewPassword';
 import { configured } from './lib/supabase';
 import { Loading, Notice, SplashLoading } from './ui';
 import { AdminLayout } from './admin/AdminLayout';
@@ -63,7 +64,7 @@ function StaffRoute({ section, children }: { section: PlatformPermission['sectio
 }
 
 export function App() {
-  const { loading, session, profile, signOut, blockedFeatures } = useAuth();
+  const { loading, session, profile, signOut, blockedFeatures, recovering } = useAuth();
 
   if (!configured) {
     return (
@@ -77,6 +78,7 @@ export function App() {
   if (!session) {
     return <DriverThemeProvider><Login /></DriverThemeProvider>;
   }
+  if (recovering) return <DriverThemeProvider><SetNewPassword /></DriverThemeProvider>;
   if (!profile || !profile.active) {
     return (
       <div className="center">

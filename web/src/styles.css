@@ -83,6 +83,7 @@ input[type='number']::-webkit-outer-spin-button, input[type='number']::-webkit-i
 
 /* ---------- fila flexible (usos puntuales) ---------- */
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.row.no-wrap { flex-wrap: nowrap; }
 .row > * { min-width: 0; }
 .row > label { flex: 0 1 220px; }
 .row > label.grow, .row > .grow { flex: 1 1 300px; max-width: 520px; }

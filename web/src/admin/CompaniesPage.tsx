@@ -7,8 +7,9 @@ import { fold } from '../lib/text';
 import type { Company } from '../lib/types';
 import { useAuth } from '../auth/AuthProvider';
 import { COMPANY_FEATURES, featureLabel } from '../lib/features';
+import { changePasswordFor, changeUsername } from '../lib/userAdmin';
 
-const EMPTY = { company_name: '', full_name: '', legajo: '', email: '', password: '' };
+const EMPTY = { company_name: '', full_name: '', legajo: '', username: '', email: '', password: '' };
 
 // Casillas de funciones bloqueadas: tildar una función la bloquea para la empresa.
 function FeatureChecks({ blocked, onChange }: { blocked: string[]; onChange: (next: string[]) => void }) {
@@ -44,6 +45,11 @@ export function CompaniesPage() {
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const companies = useQuery(async () => must(await supabase.from('companies').select('*').is('deleted_at', null).order('name')) as Company[], []);
   const canCreate = profile?.role === 'platform_admin';
+  const selectedCompanyId = (companies.data ?? []).find((c) => c.id === selectedId)?.id ?? '';
+  const admins = useQuery(async () => canCreate && selectedCompanyId
+    ? must(await supabase.from('profiles').select('id,full_name,username').eq('company_id', selectedCompanyId).eq('role', 'company_admin').order('full_name')) as { id: string; full_name: string; username: string | null }[]
+    : [], [canCreate, selectedCompanyId]);
+  const actOn = async (p: Promise<{ kind: 'error' | 'ok'; text: string } | null>) => { const m = await p; if (m) { setMsg(m); if (m.kind === 'ok') admins.reload(); } };
   const permission = useQuery<{ can_edit: boolean } | null>(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('can_edit')
       .or('section.eq.companies,section.eq.all').order('can_edit', { ascending: false }).limit(1).maybeSingle()) as { can_edit: boolean } | null
@@ -146,6 +152,7 @@ export function CompaniesPage() {
             <label>Nombre de la empresa<input value={form.company_name} onChange={set('company_name')} required /></label>
             <label>Administrador: nombre completo<input value={form.full_name} onChange={set('full_name')} required /></label>
             <label>Legajo<input value={form.legajo} onChange={set('legajo')} maxLength={20} /></label>
+            <label>Usuario (opcional)<input value={form.username} onChange={set('username')} maxLength={30} autoCapitalize="none" spellCheck={false} /></label>
             <label>Correo<input type="email" value={form.email} onChange={set('email')} required /></label>
             <label>Contraseña inicial<input type="text" minLength={8} value={form.password} onChange={set('password')} required /></label>
             <div className="span-12"><FeatureChecks blocked={newBlocked} onChange={setNewBlocked} /></div>
@@ -232,6 +239,20 @@ export function CompaniesPage() {
                 </div>
               )}
             </div>
+
+            {canCreate && (
+              <div className="company-file-col">
+                <h3>Administradores</h3>
+                <p className="muted">Código de empresa para ingresar con usuario: <b>{selected.slug}</b></p>
+                {(admins.data ?? []).map((a) => (
+                  <div key={a.id} className="row" style={{ alignItems: 'center' }}>
+                    <span>{a.full_name}{a.username ? ` · ${a.username}` : ''}</span>
+                    <button type="button" className="secondary compact" onClick={() => void actOn(changeUsername(a))}>Usuario</button>
+                    <button type="button" className="secondary compact" onClick={() => void actOn(changePasswordFor(a))}>Clave</button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {canEdit && (
               <div className="company-file-col company-file-actions">
