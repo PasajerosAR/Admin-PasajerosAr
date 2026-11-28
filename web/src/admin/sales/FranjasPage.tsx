@@ -59,7 +59,7 @@ export function FranjasPage() {
     const { error } = await supabase.rpc('save_fare_week', { p_grid: cells });
     if (error) throw error;
     setGrid(null); weekly.reload();
-  }, 'Semana guardada. Rige para los viajes que se generen desde ahora; los ya generados conservan su franja.');
+  }, 'Semana guardada. Los viajes futuros sin ventas ya tomaron la franja nueva; los que tienen ventas conservan la suya.');
 
   // ---- excepciones
   const exceptions = useQuery(async () => profile?.company_id
@@ -73,7 +73,7 @@ export function FranjasPage() {
       const { error } = await supabase.rpc('save_fare_exception', { p_date: exc.date, p_from_hour: Number(exc.from), p_to_hour: Number(exc.to), p_band: exc.band });
       if (error) throw error;
       setExc({ date: '', from: '0', to: '24', band: exc.band }); exceptions.reload();
-    }, 'Excepción guardada. Rige para los viajes que se generen desde ahora.');
+    }, 'Excepción guardada. Los viajes futuros sin ventas ya tomaron la franja nueva.');
   };
   const removeExc = (id: string) => void run(async () => { const { error } = await supabase.rpc('delete_fare_exception', { p_id: id }); if (error) throw error; exceptions.reload(); }, 'Excepción eliminada.');
   const bandOf = (id: string) => bands.find((b) => b.id === id);
@@ -141,7 +141,7 @@ export function FranjasPage() {
 
           <div className="card stack">
             <h2>Excepciones por fecha</h2>
-            <p className="muted">Para feriados, puentes o fechas especiales: pisan la semana base en ese rango de horas de salida.</p>
+            <p className="muted">Para cambiar el precio en un rango de horas de una fecha puntual. Un feriado de día completo se carga en “Feriados” (ahí se define que el día es feriado, con sus horarios y su precio); esto es solo para casos por horas.</p>
             <form className="row" onSubmit={addExc}>
               <label>Fecha<input type="date" value={exc.date} onChange={(e) => setExc({ ...exc, date: e.target.value })} required /></label>
               <label>Desde<select value={exc.from} onChange={(e) => setExc({ ...exc, from: e.target.value })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hh(h)}</option>)}</select></label>
