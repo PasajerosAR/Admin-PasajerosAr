@@ -52,7 +52,7 @@ export interface RouteStop {
   id: string; route_id: string; position: number; name: string; lat: number | null; lng: number | null; place_id: string | null;
 }
 export interface ServiceStop { service_id: string; route_stop_id: string; minutes_from_start: number; dwell_minutes: number; publish_from_web?: boolean }
-export interface Company { id: string; name: string; active: boolean; created_at: string; logo_path: string | null; blocked_features: string[]; slug?: string }
+export interface Company { id: string; name: string; active: boolean; created_at: string; logo_path: string | null; blocked_features: string[]; slug?: string; login_code?: string }
 export interface Service { id: string; code: string; active: boolean; layout_id: string | null }
 export interface ServiceDeparture {
   id: string; service_id: string; route_id: string; departure_time: string; next_day: boolean; day_types: DayType[]; active: boolean;

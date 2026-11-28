@@ -16,7 +16,7 @@ export function CompanyUsersPage() {
   const [msg, setMsg]   = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const company = useQuery(async () => profile?.company_id ? must(await supabase.from('companies').select('slug').eq('id', profile.company_id).single()) as { slug: string } : null, [profile?.company_id]);
+  const company = useQuery(async () => profile?.company_id ? must(await supabase.from('companies').select('login_code').eq('id', profile.company_id).single()) as { login_code: string } : null, [profile?.company_id]);
   const users = useQuery(async () =>
     must(await supabase
       .from('profiles')
@@ -60,7 +60,7 @@ export function CompanyUsersPage() {
       <PageHead title="Usuarios internos" />
       <p className="muted">
         Administradores y vendedores de tu empresa. Los vendedores tienen acceso completo
-        a ventas, devoluciones y QR de cortesía. Todo queda registrado para auditoría. Para ingresar con usuario, la persona escribe su usuario y el código de la empresa{company.data?.slug ? <>: <b>{company.data.slug}</b></> : ''}; con el correo no hace falta código.
+        a ventas, devoluciones y QR de cortesía. Todo queda registrado para auditoría. Para ingresar con usuario, la persona escribe su usuario y el código de la empresa{company.data?.login_code ? <>: <b>{company.data.login_code}</b></> : ''}; con el correo no hace falta código.
       </p>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
 

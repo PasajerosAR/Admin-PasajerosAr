@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     const url = Deno.env.get('SUPABASE_URL')!;
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-    const { data: co } = await admin.from('companies').select('id').ilike('slug', company).maybeSingle();
+    const { data: co } = await admin.from('companies').select('id').ilike('login_code', company.replace(/[\\%_]/g, (c) => `\\${c}`)).maybeSingle();
     if (!co) return json(BAD, 401);
     const { data: prof } = await admin.from('profiles').select('id, active')
       .eq('company_id', co.id).ilike('username', username.replace(/[\\%_]/g, (c) => `\\${c}`)).maybeSingle();

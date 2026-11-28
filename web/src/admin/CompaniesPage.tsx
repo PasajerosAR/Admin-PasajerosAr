@@ -49,6 +49,12 @@ export function CompaniesPage() {
   const admins = useQuery(async () => canCreate && selectedCompanyId
     ? must(await supabase.from('profiles').select('id,full_name,username').eq('company_id', selectedCompanyId).eq('role', 'company_admin').order('full_name')) as { id: string; full_name: string; username: string | null }[]
     : [], [canCreate, selectedCompanyId]);
+  const editCode = async (c: Company) => {
+    const value = window.prompt(`Código de empresa de ${c.name} (2 a 12 letras o números). Si lo cambiás, avisale a la empresa: es lo que usan para ingresar con usuario.`, c.login_code ?? '');
+    if (value === null) return;
+    const { error } = await supabase.rpc('set_company_login_code', { p_company: c.id, p_code: value });
+    if (error) setMsg({ kind: 'error', text: friendly(error) }); else { setMsg({ kind: 'ok', text: 'Código actualizado.' }); companies.reload(); }
+  };
   const actOn = async (p: Promise<{ kind: 'error' | 'ok'; text: string } | null>) => { const m = await p; if (m) { setMsg(m); if (m.kind === 'ok') admins.reload(); } };
   const permission = useQuery<{ can_edit: boolean } | null>(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('can_edit')
@@ -243,7 +249,8 @@ export function CompaniesPage() {
             {canCreate && (
               <div className="company-file-col">
                 <h3>Administradores</h3>
-                <p className="muted">Código de empresa para ingresar con usuario: <b>{selected.slug}</b></p>
+                <p className="muted">Código de empresa para ingresar con usuario: <b>{selected.login_code}</b>{' '}
+                  <button type="button" className="secondary compact" onClick={() => void editCode(selected)}>Cambiar</button></p>
                 {(admins.data ?? []).map((a) => (
                   <div key={a.id} className="row" style={{ alignItems: 'center' }}>
                     <span>{a.full_name}{a.username ? ` · ${a.username}` : ''}</span>
