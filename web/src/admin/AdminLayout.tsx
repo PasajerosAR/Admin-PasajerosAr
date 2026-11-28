@@ -110,7 +110,7 @@ export function AdminLayout() {
   const staffLinks = STAFF_LINKS.filter(([, , , section]) => staffSections.has(section) || staffSections.has('all'));
   // Secciones que la empresa no tiene habilitadas (bloqueadas por el administrador general)
   const enabled = (links: [string, string, boolean][]) => links.filter(([to]) => !(
-    (to === '/admin/gps' && blockedFeatures.includes('gps')) || (to.startsWith('/admin/ventas') && blockedFeatures.includes('fares'))
+    (to === '/admin/gps' && blockedFeatures.includes('gps')) || (to.startsWith('/admin/ventas') && blockedFeatures.includes('fares')) || ((to === '/admin/marcajes' || to === '/admin/zonas-marcaje') && blockedFeatures.includes('clock'))
   ));
   const links = platform ? PLATFORM_LINKS
     : profile?.role === 'platform_staff' ? staffLinks
