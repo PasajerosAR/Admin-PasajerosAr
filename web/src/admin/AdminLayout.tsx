@@ -100,6 +100,9 @@ export function AdminLayout() {
   const [query, setQuery] = useState('');
   useEffect(() => { setMenuOpen(false); setQuery(''); }, [pathname]);
   const platform = profile?.role === 'platform_admin';
+  const companyCode = useQuery(async () => profile?.company_id && ['company_admin', 'seller'].includes(profile.role)
+    ? must(await supabase.from('companies').select('login_code').eq('id', profile.company_id).single()) as { login_code: string }
+    : null, [profile?.company_id, profile?.role]);
   const permissions = useQuery(async () => profile?.role === 'platform_staff'
     ? must(await supabase.from('platform_permissions').select('section,can_edit')) as Pick<PlatformPermission, 'section' | 'can_edit'>[]
     : [], [profile?.role]);
@@ -128,7 +131,11 @@ export function AdminLayout() {
   return (
     <div className="admin">
       <nav id="admin-nav" className={menuOpen ? 'open' : ''} aria-label="Menú del panel">
-        <div className="who"><b>Pasajeros<span>.ar</span></b><small>{profile?.full_name}<br />{title}</small></div>
+        <div className="who">
+          <b>Pasajeros<span>.ar</span></b>
+          <small>{profile?.full_name}<br />{title}</small>
+          {companyCode.data?.login_code && <small className="company-login-code">ID Empresa: {companyCode.data.login_code}</small>}
+        </div>
         <input type="search" className="nav-search" placeholder="Buscar sección…" aria-label="Buscar sección del menú" value={query} onChange={(e) => setQuery(e.target.value)} />
         {shown.map(([to, label, end]) => (
           <span key={to} className="nav-item">

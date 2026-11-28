@@ -175,6 +175,7 @@ td input[type='number'] { width: 6ch; }
 .admin nav .who { padding: 16px 10px 12px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid #1a2d40; margin: 0 0 4px; }
 .admin nav .who b { font-size: 17px; letter-spacing: -.02em; font-weight: 800; } .admin nav .who b span { color: #60b4ee; }
 .admin nav .who small { font-size: 11px; line-height: 1.4; color: #7a8fa3; margin-top: 2px; }
+.admin nav .who .company-login-code { color: #c2d1df; font-weight: 600; }
 /* buscador de sección */
 .admin nav .nav-search { min-height: 30px; margin: 0 0 6px; background: #152030; border: 1px solid #22364a; color: #e0eaf4; font-size: 12.5px; border-radius: 8px; width: 100%; }
 .admin nav .nav-search::placeholder { color: #6a7f94; }
