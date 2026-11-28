@@ -6,6 +6,7 @@ import { DateInput, Loading, Notice, formatTime, todayLocal } from '../ui';
 import { fold } from '../lib/text';
 import { useAuth } from '../auth/AuthProvider';
 import { INCIDENT_LABEL, STATUS_LABEL, type IncidentKind, type Profile, type TripStatus, type Vehicle } from '../lib/types';
+import { bandName, useFareBands } from '../lib/fareBands';
 import { DAY_TYPES, DAY_TYPE_LABEL, dayTypeOf, type DayType } from '../lib/dayType';
 
 interface IncidentRow {
@@ -30,13 +31,14 @@ const addDays = (value: string, n: number) => { const d = new Date(`${value}T12:
 
 interface TripRow {
   id: string; service_id: string; layout_id: string | null; status: TripStatus; scheduled_departure: string; vehicle_id: string | null; driver_id: string | null;
-  started_at: string | null; started_manually: boolean; day_type: DayType; published_at: string | null;
+  started_at: string | null; started_manually: boolean; day_type: DayType; fare_band: string; published_at: string | null;
   services: { code: string } | null;
   service_departures: { routes: { name: string } | null } | null;
 }
 
 export function TripsPage() {
   const { profile } = useAuth();
+  const fareBands = useFareBands();
   const canEdit = profile?.role === 'company_admin';
   const [date, setDate] = useState(todayLocal());
   const [typeOverride, setTypeOverride] = useState<DayType | null>(null);
@@ -56,7 +58,7 @@ export function TripsPage() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,service_id,layout_id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,published_at,services(code),service_departures(routes(name))')
+    .select('id,service_id,layout_id,status,scheduled_departure,vehicle_id,driver_id,started_at,started_manually,day_type,fare_band,published_at,services(code),service_departures(routes(name))')
     .eq('service_date', date).neq('status', 'cancelled').order('scheduled_departure')) as unknown as TripRow[], [date]);
   const incidents = useQuery(async () => {
     const from = new Date(`${date}T00:00:00`), to = new Date(from.getTime() + 24 * 3600 * 1000);
@@ -386,7 +388,7 @@ export function TripsPage() {
                         const editable = canEdit && t.status === 'scheduled';
                         return (
                           <tr key={t.id}>
-                            <td><b>#{t.services?.code}</b><br /><span className="muted" style={{ fontSize: 12 }}>{DAY_TYPE_LABEL[t.day_type]}</span></td>
+                            <td><b>#{t.services?.code}</b><br /><span className="muted" style={{ fontSize: 12 }}>{DAY_TYPE_LABEL[t.day_type]}{t.fare_band !== t.day_type ? ` · tarifa ${bandName(fareBands.bands, t.fare_band)}` : ''}</span></td>
                             <td>{t.service_departures?.routes?.name}</td>
                             <td>{formatTime(t.scheduled_departure)}</td>
                             <td>

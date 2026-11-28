@@ -32,6 +32,7 @@ export function ClockPunchesPage() {
   const [to, setTo] = useState(todayLocal());
   const [onlyReview, setOnlyReview] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
 
   const drivers = useQuery(async () => must(await supabase.from('profiles').select('id,full_name').eq('role', 'driver').order('full_name')) as Driver[], []);
@@ -48,6 +49,14 @@ export function ClockPunchesPage() {
 
   if (profile?.role !== 'company_admin') return null;
   const rows = punches.data ?? [];
+  const groups = Array.from(rows.reduce((result, punch) => {
+    const key = punch.driver_id;
+    const label = punch.profiles?.full_name ?? 'Conductor sin nombre';
+    const group = result.get(key) ?? { key, label, legajo: punch.profiles?.legajo, punches: [] as Punch[] };
+    group.punches.push(punch);
+    result.set(key, group);
+    return result;
+  }, new Map<string, { key: string; label: string; legajo: string | null | undefined; punches: Punch[] }>()).values());
   return (
     <>
       <h1>Marcajes</h1>
@@ -69,22 +78,25 @@ export function ClockPunchesPage() {
       {punches.error && <Notice>{punches.error}</Notice>}
       {punches.loading && <Loading />}
       {rows.length >= LIMIT && <Notice kind="warn">Se muestran los {LIMIT} más recientes. Acotá el período o elegí un conductor para ver el resto.</Notice>}
-      <div className="card table-wrap">
-        <table>
-          <thead><tr><th>Fecha y hora</th><th>Conductor</th><th>Marcaje</th><th>Zona</th><th>Estado</th><th /></tr></thead>
-          <tbody>
-            {rows.map((p) => {
-              const r = lastReview(p);
-              return (
-                <FragmentRow key={p.id} p={p} review={r} isOpen={open === p.id}
-                  onToggle={() => setOpen(open === p.id ? null : p.id)}
-                  onReviewed={(text) => { setMsg({ kind: 'ok', text }); punches.reload(); }}
-                  onError={(text) => setMsg({ kind: 'error', text })} />
-              );
-            })}
-            {!punches.loading && rows.length === 0 && <tr><td colSpan={6} className="muted">No hay marcajes en ese período.</td></tr>}
-          </tbody>
-        </table>
+      <div className="clock-punch-groups">
+        {!punches.loading && rows.length === 0 && <div className="card"><p className="muted">No hay marcajes en ese período.</p></div>}
+        {groups.map((group) => <details key={group.key} className="operation-group"
+          open={openGroups[group.key] ?? false}
+          onToggle={(event) => {
+            const isOpen = event.currentTarget.open;
+            setOpenGroups((current) => current[group.key] === isOpen ? current : { ...current, [group.key]: isOpen });
+          }}>
+          <summary><b>{group.label}</b>{group.legajo && <span className="punch-group-legajo">Legajo {group.legajo}</span>}<span>{group.punches.length} {group.punches.length === 1 ? 'marcaje' : 'marcajes'}</span></summary>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Fecha y hora</th><th>Marcaje</th><th>Zona</th><th>Estado</th><th /></tr></thead>
+              <tbody>{group.punches.map((p) => <FragmentRow key={p.id} p={p} review={lastReview(p)} isOpen={open === p.id}
+                onToggle={() => setOpen(open === p.id ? null : p.id)}
+                onReviewed={(text) => { setMsg({ kind: 'ok', text }); punches.reload(); }}
+                onError={(text) => setMsg({ kind: 'error', text })} />)}</tbody>
+            </table>
+          </div>
+        </details>)}
       </div>
     </>
   );
@@ -97,7 +109,6 @@ function FragmentRow({ p, review, isOpen, onToggle, onReviewed, onError }: {
     <>
       <tr className={isOpen ? 'sel-row' : undefined}>
         <td>{when(p.server_at)}</td>
-        <td>{p.profiles?.full_name ?? '—'}{p.profiles?.legajo ? ` (${p.profiles.legajo})` : ''}</td>
         <td>{p.kind === 'in' ? 'Entrada' : 'Salida'}</td>
         <td>{p.zone_name ?? '—'}</td>
         <td>
@@ -107,7 +118,7 @@ function FragmentRow({ p, review, isOpen, onToggle, onReviewed, onError }: {
         </td>
         <td><button type="button" className="secondary" onClick={onToggle}>{isOpen ? 'Cerrar' : 'Ver'}</button></td>
       </tr>
-      {isOpen && <tr><td colSpan={6}><Detail p={p} review={review} onReviewed={onReviewed} onError={onError} /></td></tr>}
+      {isOpen && <tr><td colSpan={5}><Detail p={p} review={review} onReviewed={onReviewed} onError={onError} /></td></tr>}
     </>
   );
 }

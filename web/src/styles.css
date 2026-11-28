@@ -137,6 +137,7 @@ td input[type='number'] { width: 6ch; }
 .operation-group[open] > summary::before { transform: rotate(90deg); }
 .operation-group > summary b { font-size: 13px; font-weight: 700; }
 .operation-group > summary span { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 500; }
+.operation-group > summary .punch-group-legajo { margin-left: 8px; }
 .operation-group[open] > summary { border-bottom: 1px solid var(--line); }
 .operation-group .table-wrap { padding: 0 8px 8px; }
 .group-vehicle { display: grid; gap: 4px; max-width: 420px; margin: 10px 12px 4px; padding-top: 8px; }
@@ -299,6 +300,26 @@ td input[type='number'] { width: 6ch; }
 .gps-card span { font-size: 12px; color: var(--muted); }
 .gps-card.hot { background: #fde8d0; border-color: #e8a566; }
 .gps-card.on { box-shadow: 0 0 0 2px var(--brand); }
+.zone-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 220px)); margin-bottom: 10px; }
+.zone-layout { margin-top: 10px; }
+.zone-list h2, .zone-editor h2 { margin: 0 0 8px; }
+.zone-list { display: flex; flex-direction: column; gap: 8px; }
+.zone-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.zone-row > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.zone-row .muted, .zone-settings summary .muted { font-size: 12px; }
+.zone-actions { flex-wrap: nowrap; gap: 5px; }
+.zone-settings summary { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; cursor: pointer; list-style: none; }
+.zone-settings summary::-webkit-details-marker { display: none; }
+.zone-settings[open] summary { margin-bottom: 12px; }
+.zone-settings .stack { gap: 8px; }
+.zone-settings p { margin: 0; }
+.zone-editor { gap: 8px; }
+.zone-radius { flex: 0 0 110px; }
+.zone-hint { margin: 0; }
+.zone-editor .stopmap { height: min(48vh, 430px); min-height: 300px; }
+.zone-editor .row > label:first-child { flex: 1 1 180px; }
+.zone-editor .stack { gap: 6px; }
+.zone-editor .stack > .row { align-items: flex-end; }
 .gps-alerts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; align-items: start; }
 .alert-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 6px; border-left: 4px solid #94a3b8; background: #f1f5f9; font-size: 12.5px; }
 .alert-row.warn { border-color: #e8a566; background: #fdf1e3; }
@@ -313,6 +334,8 @@ td input[type='number'] { width: 6ch; }
 @media (max-width: 720px) {
   .live-trip-card { grid-template-columns: 1fr; gap: 6px; }
   .live-trips-map { min-height: 300px; }
+  .zone-row { align-items: flex-start; flex-direction: column; }
+  .zone-actions { flex-wrap: wrap; }
 }
 
 /* ---------- editor de asientos ---------- */

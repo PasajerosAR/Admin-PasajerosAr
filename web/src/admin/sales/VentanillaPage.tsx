@@ -1,4 +1,4 @@
-import { daysTag, type DayType } from '../../lib/dayType';
+import { bandsTag, useFareBands } from '../../lib/fareBands';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { friendly } from '../../lib/errors';
@@ -21,7 +21,7 @@ const REFRESH_MS = 8000;
 const CELL_LABEL: Record<string, string> = { door: 'Puerta', stairs: 'Escalera', driver: 'Conductor', toilet: 'Baño', trunk: 'Bodega' };
 
 interface TripOption {
-  id: string; scheduled_departure: string; status: string; layout_id: string | null; day_type: string;
+  id: string; scheduled_departure: string; status: string; layout_id: string | null; day_type: string; fare_band: string;
   services: { code: string } | null; service_departures: { route_id: string; routes: { name: string; origin: { name: string } | null; destination: { name: string } | null } | null } | null;
 }
 interface Pax { dni: string; name: string; email: string; ticketKind?: TicketKind; found?: string }
@@ -29,7 +29,7 @@ interface SoldTicket {
   id: string; qr_code: string; seat_label: string; price: number; passenger_name: string; passenger_dni: string;
   email: string | null; from_stop_id: string; to_stop_id: string; ticket_type: TicketKind;
 }
-interface PassRow { pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null; trips_left: number; expires_at: string; day_types: DayType[] }
+interface PassRow { pass_id: string; holder_name: string; holder_dni: string; place_a_name: string; place_b_name: string; seat_class: string | null; trips_left: number; expires_at: string; day_types: string[] }
 interface Sale { receiptByTicket?: Record<string, number>; sale_id: string; total: number; tickets: SoldTicket[]; email?: { sent: number; failed: number; reason?: string } | null; method: Method | 'complimentary'; receipt_number: number; channel: 'counter' | 'web'; created_at: string }
 
 export function VentanillaPage() {
@@ -49,9 +49,10 @@ export function VentanillaPage() {
   const [now, setNow] = useState(Date.now());
   const [passDni, setPassDni] = useState('');
   const [passId, setPassId] = useState('');
+  const { bands } = useFareBands();
 
   const trips = useQuery(async () => must(await supabase.from('trips')
-    .select('id,scheduled_departure,status,layout_id,day_type,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
+    .select('id,scheduled_departure,status,layout_id,day_type,fare_band,services(code),service_departures(route_id,routes(name,origin:places!routes_origin_place_id_fkey(name),destination:places!routes_destination_place_id_fkey(name)))')
     .eq('service_date', date).in('status', ['scheduled', 'in_progress']).order('scheduled_departure')) as unknown as TripOption[], [date]);
   const trip = trips.data?.find((t) => t.id === tripId);
   const routeId = trip?.service_departures?.route_id ?? '';
@@ -62,7 +63,7 @@ export function VentanillaPage() {
   const cells = useQuery(async () => layoutId ? must(await supabase.from('layout_cells')
     .select('id,floor,row_idx,col_idx,kind,label,seat_class,blocked,unusable').eq('layout_id', layoutId)) as TaquillaCell[] : [], [layoutId]);
   const floors = useQuery(async () => layoutId ? must(await supabase.from('layout_floors').select('floor,rows,cols').eq('layout_id', layoutId).order('floor')) as { floor: number; rows: number; cols: number }[] : [], [layoutId]);
-  const dayType = trip?.day_type;
+  const dayType = trip?.fare_band;
   const prices = useQuery(async () => routeId && dayType ? must(await supabase.from('ticket_prices').select('from_pos,to_pos,price,seat_class').eq('route_id', routeId).eq('day_type', dayType).eq('active', true)) as TaquillaPrice[] : [], [routeId, dayType]);
   const reservations = useQuery(async () => tripId ? must(await supabase.rpc('taquilla_seat_status', { p_trip: tripId })) as TaquillaRange[] : [], [tripId]);
   const passDigits = passDni.replace(/\D/g, '');
@@ -328,7 +329,7 @@ export function VentanillaPage() {
                 <label>Abono
                   <select value={passId} onChange={(e) => setPassId(e.target.value)}>
                     <option value="">Elegir...</option>
-                    {(passes.data ?? []).map((p) => <option key={p.pass_id} value={p.pass_id}>{p.holder_name} · {p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''}{daysTag(p.day_types)} · quedan {p.trips_left} · vence {new Date(p.expires_at).toLocaleDateString('es-AR')}</option>)}
+                    {(passes.data ?? []).map((p) => <option key={p.pass_id} value={p.pass_id}>{p.holder_name} · {p.place_a_name} ↔ {p.place_b_name}{p.seat_class ? ` · ${p.seat_class}` : ''}{bandsTag(p.day_types, bands)} · quedan {p.trips_left} · vence {new Date(p.expires_at).toLocaleDateString('es-AR')}</option>)}
                   </select>
                 </label>
               )}

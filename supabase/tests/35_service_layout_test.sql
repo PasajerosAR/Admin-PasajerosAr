@@ -4,7 +4,9 @@ alter table auth.users add column if not exists banned_until timestamptz;
 -- disposicion por servicio, unidades compatibles, cierre manual y baja de conductor
 create temp table sx as
 select s.id as service_id, d.id as dep from public.services s join public.service_departures d on d.service_id = s.id
- where s.company_id = 'aaaaaaaa-0000-0000-0000-000000000001' and d.active and s.active limit 1;
+ where s.company_id = 'aaaaaaaa-0000-0000-0000-000000000001' and d.active and s.active
+   and (select count(*) from public.service_departures x where x.service_id = s.id and x.active) = 1
+ order by s.code limit 1;
 grant all on sx to authenticated;
 select t.login('a1000000-0000-0000-0000-000000000001');
 -- primera disposicion y su unidad

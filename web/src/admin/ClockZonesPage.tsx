@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 import { friendly } from '../lib/errors';
 import { must, useQuery } from '../lib/useQuery';
-import { Loading, Notice } from '../ui';
+import { Loading, Notice, PageHead } from '../ui';
 import { useAuth } from '../auth/AuthProvider';
 import { ZoneMap } from './ZoneMap';
 
@@ -65,55 +65,59 @@ export function ClockZonesPage() {
   const active = (zones.data ?? []).filter((z) => z.active).length;
   return (
     <>
-      <h1>Zonas de marcaje</h1>
-      <p className="muted">Ubicá los lugares donde se puede marcar la entrada y la salida (galpones, terminales) y el radio permitido en metros. El servidor valida la distancia con la ubicación que informa el teléfono: es una evidencia, no una prueba infalible (el GPS puede tener error o ser manipulado).</p>
+      <PageHead title="Zonas de marcaje" subtitle="Administrá los lugares habilitados para iniciar y cerrar la jornada." actions={<button className="secondary compact" onClick={() => { zones.reload(); settings.reload(); }}>Actualizar</button>} />
       {zones.data && active === 0 && <Notice kind="warn">Sin zonas activas el marcaje está desactivado: los conductores inician y cierran la jornada como siempre. Al activar la primera zona pasan a marcar con foto y ubicación.</Notice>}
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
-
-      <div className="card stack">
-        <h2 style={{ margin: 0 }}>Fuera de la zona</h2>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="mode" style={{ width: 'auto' }} checked={curMode === 'block'} onChange={() => setMode('block')} /> Bloquear el marcaje (el conductor no puede iniciar ni cerrar la jornada)</label>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}><input type="radio" name="mode" style={{ width: 'auto' }} checked={curMode === 'review'} onChange={() => setMode('review')} /> Registrarlo para revisión (el conductor marca y queda señalado en Marcajes)</label>
-        <label style={{ maxWidth: 320 }}>Conservar las fotos (días)
-          <input type="number" min={7} max={365} value={curDays} onChange={(e) => setDays(e.target.value)} />
-        </label>
-        <p className="muted" style={{ margin: 0 }}>Pasado ese plazo se borran las fotos; la hora, la ubicación y el resultado del marcaje se conservan.</p>
-        <div><button type="button" onClick={() => void saveSettings()} disabled={settings.loading}>Guardar configuración</button></div>
-      </div>
-
-      <form className="card stack" onSubmit={save}>
-        <h2 style={{ margin: 0 }}>{form.id ? 'Editar zona' : 'Nueva zona'}</h2>
-        <div className="row">
-          <label>Nombre<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej.: Galpón Paraná" maxLength={80} required /></label>
-          <label style={{ flex: '0 0 200px' }}>Radio (metros)<input type="number" min={20} max={5000} value={form.radius} onChange={(e) => setForm({ ...form, radius: e.target.value })} required /></label>
-        </div>
-        <ZoneMap lat={form.lat} lng={form.lng} radius={Number.isFinite(radius) && radius > 0 ? radius : 100} others={others}
-          onPick={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
-        <div className="row">
-          <button type="submit" disabled={busy}>{form.id ? 'Guardar cambios' : 'Agregar zona'}</button>
-          {form.id && <button type="button" className="secondary" onClick={() => setForm(EMPTY)}>Cancelar</button>}
-        </div>
-      </form>
-
       {zones.error && <Notice>{zones.error}</Notice>}
-      {zones.loading && <Loading />}
-      <div className="card table-wrap">
-        <table>
-          <thead><tr><th>Zona</th><th>Radio</th><th>Estado</th><th /></tr></thead>
-          <tbody>
-            {(zones.data ?? []).map((z) => (
-              <tr key={z.id}>
-                <td>{z.name}</td><td>{z.radius_m} m</td><td>{z.active ? 'Activa' : 'Inactiva'}</td>
-                <td className="row" style={{ gap: 6 }}>
-                  <button type="button" className="secondary" onClick={() => edit(z)}>Editar</button>
-                  <button type="button" className="secondary" onClick={() => void toggle(z)}>{z.active ? 'Desactivar' : 'Activar'}</button>
-                  <button type="button" className="secondary" onClick={() => void remove(z)}>Quitar</button>
-                </td>
-              </tr>
-            ))}
-            {!zones.loading && (zones.data ?? []).length === 0 && <tr><td colSpan={4} className="muted">Todavía no hay zonas.</td></tr>}
-          </tbody>
-        </table>
+      <div className="gps-cards zone-summary" aria-label="Resumen de zonas">
+        <div className="gps-card"><b>{(zones.data ?? []).length}</b><span>Zonas configuradas</span></div>
+        <div className="gps-card"><b>{active}</b><span>Activas</span></div>
+      </div>
+      <div className="gps-layout zone-layout">
+        <div className="gps-left">
+          <section className="card zone-list">
+            <h2>Zonas</h2>
+            {zones.loading ? <Loading /> : (zones.data ?? []).length === 0
+              ? <p className="muted">Todavía no hay zonas. Creá la primera desde el formulario.</p>
+              : (zones.data ?? []).map((z) => <article className="zone-row" key={z.id}>
+                <div><b>{z.name}</b><span className="muted">{z.radius_m} m · {z.active ? 'Activa' : 'Inactiva'}</span></div>
+                <div className="row zone-actions">
+                  <button type="button" className="secondary compact" onClick={() => edit(z)}>Editar</button>
+                  <button type="button" className="secondary compact" onClick={() => void toggle(z)}>{z.active ? 'Desactivar' : 'Activar'}</button>
+                  <button type="button" className="secondary compact" onClick={() => void remove(z)}>Quitar</button>
+                </div>
+              </article>)}
+          </section>
+          <details className="card zone-settings">
+            <summary><b>Configuración de marcajes</b><span className="muted">Excepciones y conservación de fotos</span></summary>
+            <div className="stack">
+              <label>Si marca fuera de la zona
+                <select value={curMode} onChange={(e) => setMode(e.target.value as 'block' | 'review')}>
+                  <option value="block">Bloquear el marcaje</option><option value="review">Permitir y señalar para revisión</option>
+                </select>
+              </label>
+              <label>Conservar las fotos (días)<input type="number" min={7} max={365} value={curDays} onChange={(e) => setDays(e.target.value)} /></label>
+              <p className="muted">Después se borran las fotos; se conservan la hora, ubicación y resultado.</p>
+              <button type="button" onClick={() => void saveSettings()} disabled={settings.loading}>Guardar configuración</button>
+            </div>
+          </details>
+        </div>
+        <div className="gps-right">
+          <form className="card stack zone-editor" onSubmit={save}>
+            <h2>{form.id ? 'Editar zona' : 'Nueva zona'}</h2>
+            <div className="row">
+              <label>Nombre<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej.: Galpón Paraná" maxLength={80} required /></label>
+              <label className="zone-radius">Radio (m)<input type="number" min={20} max={5000} value={form.radius} onChange={(e) => setForm({ ...form, radius: e.target.value })} required /></label>
+            </div>
+            <ZoneMap lat={form.lat} lng={form.lng} radius={Number.isFinite(radius) && radius > 0 ? radius : 100} others={others}
+              onPick={(lat, lng) => setForm((f) => ({ ...f, lat, lng }))} />
+            <p className="muted zone-hint">Tocá el mapa o arrastrá el pin para elegir la ubicación.</p>
+            <div className="row">
+              <button type="submit" disabled={busy}>{form.id ? 'Guardar cambios' : 'Agregar zona'}</button>
+              {form.id && <button type="button" className="secondary" onClick={() => setForm(EMPTY)}>Cancelar edición</button>}
+            </div>
+          </form>
+        </div>
       </div>
     </>
   );

@@ -40,6 +40,7 @@ const LINKS: [string, string, boolean][] = [
   ['/admin/ventas/abonos', 'Abonos', false],
   ['/admin/ventas/caja', 'Cierre de caja', false],
   ['/admin/ventas/tarifas', 'Tarifas', false],
+  ['/admin/ventas/franjas', 'Franjas horarias', false],
   ['/admin/ventas/mercadopago', 'Mercado Pago', false],
   ['/admin/ventas/usuarios', 'Usuarios de empresa', false],
   ['/admin/ventas/reportes', 'Reportes de ventas', false]
@@ -78,6 +79,7 @@ const ICONS: Record<string, string> = {
   '/admin/marcajes': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   '/admin/zonas-marcaje': 'M12 21s6-5.400 6-10a6 6 0 0 0-12 0c0 4.600 6 10 6 10zM9 11l2 2 4-4',
   '/admin/ventas': 'M5 20V10M12 20V4M19 20v-7',
+  '/admin/ventas/franjas': 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   '/admin/ventas/vender': 'M3 7h18v10H3zM3 11h18M7 15h3',
   '/admin/ventas/pasajes': 'M4 8a2 2 0 0 0 0 4v4h16v-4a2 2 0 0 1 0-4V6H4zM14 6v12',
   '/admin/ventas/abonos': 'M4 6h16v12H4zM4 10h16M8 14h3',

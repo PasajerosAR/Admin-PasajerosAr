@@ -14,6 +14,7 @@ import { FirstSteps } from './admin/FirstSteps';
 import { ServicesPage } from './admin/ServicesPage';
 import { ClockPunchesPage } from './admin/ClockPunchesPage';
 import { ClockZonesPage } from './admin/ClockZonesPage';
+import { FranjasPage } from './admin/sales/FranjasPage';
 import { HolidaysPage } from './admin/HolidaysPage';
 import { PlacesPage } from './admin/PlacesPage';
 import { CompaniesPage } from './admin/CompaniesPage';
@@ -141,6 +142,7 @@ export function App() {
         <Route path="servicios" element={profile.role === 'company_admin' ? <ServicesPage /> : <Navigate to="/admin" replace />} />
         <Route path="feriados" element={profile.role === 'company_admin' ? <HolidaysPage /> : <Navigate to="/admin" replace />} />
         <Route path="marcajes" element={profile.role === 'company_admin' ? <ClockPunchesPage /> : <Navigate to="/admin" replace />} />
+        <Route path="ventas/franjas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <FranjasPage /> : <Navigate to="/admin" replace />} />
         <Route path="zonas-marcaje" element={profile.role === 'company_admin' ? <ClockZonesPage /> : <Navigate to="/admin" replace />} />
         <Route path="conductores" element={profile.role === 'company_admin' ? <DriversPage /> : <Navigate to="/admin" replace />} />
         <Route path="ventas" element={salesBlocked ? <Navigate to="/admin" replace /> : profile.role === 'company_admin' ? <SalesDashboardPage /> : <Navigate to="/admin" replace />} />

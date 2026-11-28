@@ -89,7 +89,6 @@ export function ZoneMap({ lat, lng, radius, others, onPick }: Props) {
           {results.map((r) => <li key={r.display_name}><button type="button" className="secondary" style={{ width: '100%', textAlign: 'left' }} onClick={() => go(r)}>{r.display_name}</button></li>)}
         </ul>
       )}
-      <p className="muted" style={{ margin: 0 }}>Tocá el mapa para ubicar el galpón y arrastrá el pin para ajustarlo. El círculo es la zona donde se puede marcar.</p>
       <div ref={el} className="stopmap" role="application" aria-label="Mapa para ubicar la zona de marcaje" />
     </div>
   );
